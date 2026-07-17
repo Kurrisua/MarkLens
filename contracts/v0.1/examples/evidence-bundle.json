@@ -1,0 +1,37 @@
+{
+  "search_id": "search_demo_001",
+  "case_id": "case_demo_001",
+  "query": {
+    "name": "MarkLens",
+    "nice_classes": [9, 42]
+  },
+  "hits": [
+    {
+      "trademark_id": "tm_demo_001",
+      "name": "MARK LENS",
+      "application_no": "DEMO-001",
+      "nice_classes": [9],
+      "status": "demo_registered",
+      "scores": {
+        "text": 0.91,
+        "phonetic": 0.88,
+        "semantic": 0.74,
+        "visual": null,
+        "category": 1.0,
+        "overall": 0.87
+      },
+      "reason_codes": ["TEXT_HIGHLY_SIMILAR", "RELATED_CLASS"],
+      "source": {
+        "dataset": "demo_dataset_v1",
+        "record_id": "demo-001",
+        "source_url": null
+      }
+    }
+  ],
+  "warnings": ["当前结果来自演示数据，不代表真实商标状态。"],
+  "versions": {
+    "dataset": "demo-v1",
+    "retrieval": "retrieval-mock-v1",
+    "scoring": "retrieval-score-v1"
+  }
+}

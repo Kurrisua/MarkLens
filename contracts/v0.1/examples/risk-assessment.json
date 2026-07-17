@@ -1,0 +1,19 @@
+{
+  "analysis_id": "risk_demo_001",
+  "search_id": "search_demo_001",
+  "level": "high",
+  "score": 0.82,
+  "factors": [
+    {
+      "code": "TEXT_AND_CLASS_OVERLAP",
+      "title": "文字近似且类别相关",
+      "explanation": "演示候选的文字相似度较高，且包含相关类别。",
+      "evidence_ids": ["tm_demo_001"]
+    }
+  ],
+  "legal_references": [],
+  "uncertainties": ["尚未接入真实商标数据和法律资料。"],
+  "recommendations": ["接入许可明确的数据后重新检索，并由专业人员复核。"],
+  "requires_human_review": true,
+  "score_config_version": "risk-mock-v1"
+}

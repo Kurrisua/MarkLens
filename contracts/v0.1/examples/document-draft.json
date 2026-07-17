@@ -1,0 +1,27 @@
+{
+  "document_id": "doc_demo_001",
+  "analysis_id": "risk_demo_001",
+  "type": "trademark_registration_risk_report",
+  "template_version": "risk-report-v1",
+  "sections": [
+    {
+      "key": "disclaimer",
+      "title": "使用说明",
+      "content": "本报告使用演示数据生成，仅用于验证系统流程，不构成法律意见。",
+      "citation_ids": []
+    },
+    {
+      "key": "summary",
+      "title": "风险摘要",
+      "content": "当前演示结果提示需要进一步人工检索和复核。",
+      "citation_ids": []
+    }
+  ],
+  "citations": [],
+  "validation": {
+    "status": "warning",
+    "errors": [],
+    "warnings": ["缺少可验证的法律资料引用，禁止作为正式报告导出。"]
+  },
+  "requires_human_review": true
+}

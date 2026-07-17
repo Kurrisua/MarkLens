@@ -1,0 +1,10 @@
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "请求字段不符合 contract-v0.1。",
+    "request_id": "req_demo_001",
+    "details": {
+      "field": "nice_classes"
+    }
+  }
+}

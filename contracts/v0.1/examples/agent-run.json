@@ -1,0 +1,9 @@
+{
+  "run_id": "run_demo_001",
+  "agent": "retrieval",
+  "status": "completed",
+  "contract_version": "v0.1",
+  "created_at": "2026-07-13T00:00:00Z",
+  "updated_at": "2026-07-13T00:00:01Z",
+  "error": null
+}

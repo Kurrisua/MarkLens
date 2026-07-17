@@ -1,0 +1,63 @@
+from io import BytesIO
+
+import numpy as np
+from PIL import Image
+
+from app.config import Settings
+from app.retrieval import (
+    blob_to_vector,
+    normalize_text,
+    normalized_weights,
+    phash_similarity,
+    phonetic_similarity,
+    process_image,
+    risk_level,
+    text_similarity,
+    vector_to_blob,
+    weighted_score,
+)
+
+
+def test_text_normalization_and_similarity() -> None:
+    assert normalize_text(" Ｍａｒｋ-Lens！ ") == "marklens"
+    assert text_similarity("马克视界", "马克视界") == 1
+    assert phonetic_similarity("知标", "智标") > 0.75
+
+
+def test_missing_channels_renormalize_weights() -> None:
+    scores = {"visual": None, "text": 1.0, "phonetic": 0.8, "semantic": None, "category": 1.0}
+    weights = normalized_weights(scores)
+    assert round(sum(weights.values()), 5) == 1
+    assert "visual" not in weights
+    score, applied = weighted_score(scores)
+    assert score > 0.8
+    assert applied == weights
+
+
+def test_risk_thresholds_and_insufficient_evidence() -> None:
+    assert risk_level(0.75) == "high"
+    assert risk_level(0.50) == "medium"
+    assert risk_level(0.49) == "low"
+    assert risk_level(0.99, has_evidence=False) == "insufficient_evidence"
+
+
+def test_vector_blob_is_little_endian_float32() -> None:
+    vector = np.array([0.25, -1.5, 3.0], dtype=np.float32)
+    blob = vector_to_blob(vector)
+    restored = blob_to_vector(blob, 3)
+    assert restored.dtype == np.dtype("float32")
+    np.testing.assert_allclose(restored, vector)
+
+
+def test_phash_and_image_sanitization(tmp_path) -> None:
+    output = BytesIO()
+    Image.new("RGB", (80, 60), "white").save(output, "PNG")
+    settings = Settings(
+        database_url="mysql+pymysql://test:test@localhost/test",
+        upload_dir=tmp_path,
+        model_runtime_enabled=False,
+    )
+    processed = process_image(output.getvalue(), "logo.png", settings)
+    assert processed.mime_type == "image/png"
+    assert processed.width == 80
+    assert phash_similarity(processed.phash, processed.phash) == 1

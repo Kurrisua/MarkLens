@@ -1,0 +1,3 @@
+source_record_id,name,application_number,applicant,nice_classes,goods_services,status,source_url,is_demo
+CSV-001,检标云,MLCSV0001,MarkLens课程组,9|42,软件即服务|图像识别软件,申请中,demo://marklens/csv/1,true
+CSV-002,知标镜,MLCSV0002,MarkLens课程组,45,知识产权咨询,已注册,demo://marklens/csv/2,true

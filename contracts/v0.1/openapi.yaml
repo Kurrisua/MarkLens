@@ -1,0 +1,220 @@
+openapi: 3.1.0
+info:
+  title: MarkLens API
+  version: 0.1.0
+  description: >-
+    四个智能体并行开发使用的最小接口契约。当前实现返回演示 Mock，
+    不代表已经接入真实商标数据、法律资料或模型。
+servers:
+  - url: http://localhost:8000
+    description: 本地开发
+tags:
+  - name: system
+  - name: cases
+  - name: retrieval
+  - name: risk
+  - name: documents
+paths:
+  /health:
+    get:
+      tags: [system]
+      operationId: getHealth
+      responses:
+        "200":
+          description: 服务状态
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, contract_version, mode]
+                properties:
+                  status: {type: string, const: ok}
+                  contract_version: {type: string, const: v0.1}
+                  mode: {type: string, const: mock}
+  /api/v1/cases:
+    post:
+      tags: [cases]
+      operationId: createCase
+      summary: 创建案件上下文
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [trademark, business_description, nice_classes]
+              properties:
+                trademark:
+                  type: object
+                  required: [name]
+                  properties:
+                    name: {type: string}
+                    image_url: {type: [string, "null"]}
+                business_description: {type: string}
+                nice_classes:
+                  type: array
+                  items: {type: integer, minimum: 1, maximum: 45}
+      responses:
+        "201":
+          description: 创建后的案件上下文
+          content:
+            application/json:
+              schema:
+                $ref: ./schemas/case-context.schema.json
+        "422": {$ref: "#/components/responses/ValidationError"}
+  /api/v1/searches:
+    post:
+      tags: [retrieval]
+      operationId: createSearch
+      summary: 创建多模态检索
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [case_id]
+              properties:
+                case_id: {type: string}
+                top_k: {type: integer, minimum: 1, maximum: 100, default: 10}
+      responses:
+        "201":
+          description: 当前 Mock 直接返回检索证据包
+          content:
+            application/json:
+              schema:
+                $ref: ./schemas/evidence-bundle.schema.json
+        "422": {$ref: "#/components/responses/ValidationError"}
+  /api/v1/searches/{search_id}:
+    get:
+      tags: [retrieval]
+      operationId: getSearch
+      parameters:
+        - $ref: "#/components/parameters/SearchId"
+      responses:
+        "200":
+          description: 检索证据包
+          content:
+            application/json:
+              schema:
+                $ref: ./schemas/evidence-bundle.schema.json
+        "404": {$ref: "#/components/responses/NotFound"}
+  /api/v1/risk-analyses:
+    post:
+      tags: [risk]
+      operationId: createRiskAnalysis
+      summary: 基于检索证据创建风险分析
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [search_id]
+              properties:
+                search_id: {type: string}
+      responses:
+        "201":
+          description: 当前 Mock 直接返回风险分析
+          content:
+            application/json:
+              schema:
+                $ref: ./schemas/risk-assessment.schema.json
+        "422": {$ref: "#/components/responses/ValidationError"}
+  /api/v1/risk-analyses/{analysis_id}:
+    get:
+      tags: [risk]
+      operationId: getRiskAnalysis
+      parameters:
+        - $ref: "#/components/parameters/AnalysisId"
+      responses:
+        "200":
+          description: 风险分析
+          content:
+            application/json:
+              schema:
+                $ref: ./schemas/risk-assessment.schema.json
+        "404": {$ref: "#/components/responses/NotFound"}
+  /api/v1/documents:
+    post:
+      tags: [documents]
+      operationId: createDocument
+      summary: 创建商标注册风险评估报告初稿
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [analysis_id, document_type]
+              properties:
+                analysis_id: {type: string}
+                document_type:
+                  type: string
+                  const: trademark_registration_risk_report
+      responses:
+        "201":
+          description: 当前 Mock 直接返回文书初稿
+          content:
+            application/json:
+              schema:
+                $ref: ./schemas/document-draft.schema.json
+        "422": {$ref: "#/components/responses/ValidationError"}
+  /api/v1/documents/{document_id}:
+    get:
+      tags: [documents]
+      operationId: getDocument
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+      responses:
+        "200":
+          description: 文书初稿
+          content:
+            application/json:
+              schema:
+                $ref: ./schemas/document-draft.schema.json
+        "404": {$ref: "#/components/responses/NotFound"}
+  /api/v1/documents/{document_id}/validate:
+    post:
+      tags: [documents]
+      operationId: validateDocument
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+      responses:
+        "200":
+          description: 重新校验后的文书初稿
+          content:
+            application/json:
+              schema:
+                $ref: ./schemas/document-draft.schema.json
+        "404": {$ref: "#/components/responses/NotFound"}
+components:
+  parameters:
+    SearchId:
+      name: search_id
+      in: path
+      required: true
+      schema: {type: string}
+    AnalysisId:
+      name: analysis_id
+      in: path
+      required: true
+      schema: {type: string}
+    DocumentId:
+      name: document_id
+      in: path
+      required: true
+      schema: {type: string}
+  responses:
+    ValidationError:
+      description: 输入校验失败
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas/error-response.schema.json
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema:
+            $ref: ./schemas/error-response.schema.json

@@ -1,0 +1,41 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+
+# JavaScript
+node_modules/
+.pnpm-store/
+dist/
+build/
+.vite/
+coverage/
+*.tsbuildinfo
+
+# IDE
+.idea/
+.vscode/
+
+# Runtime and private data
+logs/
+uploads/
+data/uploads/
+data/raw/
+data/processed/
+data/indexes/
+data/mysql-local/
+data/mysql84-local/
+data/mysql84-instance/
+.model-cache/
+*.onnx
+*.onnx_data
+*.db
+*.sqlite3

@@ -1,0 +1,7 @@
+packages:
+  - "apps/web"
+
+allowBuilds:
+  esbuild: true
+
+confirmModulesPurge: false

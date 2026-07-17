@@ -1,0 +1,1289 @@
+[
+  {
+    "source_record_id": "DEMO-0001",
+    "name": "MarkLens",
+    "application_number": "MLDEMO202600001",
+    "applicant": "上海澄蓝科技有限公司",
+    "nice_classes": [
+      9,
+      42
+    ],
+    "goods_services": [
+      "可下载的计算机软件",
+      "图像识别软件",
+      "数据处理设备"
+    ],
+    "status": "已注册",
+    "status_date": "2023-02-15",
+    "application_date": "2022-02-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0001",
+    "image_path": "demo-logos/logo-01.png",
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0002",
+    "name": "MarkLink",
+    "application_number": "MLDEMO202600002",
+    "applicant": "杭州知权信息技术有限公司",
+    "nice_classes": [
+      9,
+      35,
+      42
+    ],
+    "goods_services": [
+      "商业信息服务",
+      "市场分析",
+      "广告策划"
+    ],
+    "status": "初步审定",
+    "status_date": "2024-03-15",
+    "application_date": "2023-03-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0002",
+    "image_path": "demo-logos/logo-02.png",
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0003",
+    "name": "MarkSense",
+    "application_number": "MLDEMO202600003",
+    "applicant": "北京镜界数据有限公司",
+    "nice_classes": [
+      9,
+      42
+    ],
+    "goods_services": [
+      "软件即服务",
+      "计算机软件设计",
+      "人工智能技术咨询"
+    ],
+    "status": "申请中",
+    "status_date": "2025-04-15",
+    "application_date": "2024-04-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0003",
+    "image_path": "demo-logos/logo-03.png",
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0004",
+    "name": "马克视界",
+    "application_number": "MLDEMO202600004",
+    "applicant": "深圳标识科技有限公司",
+    "nice_classes": [
+      9,
+      42,
+      45
+    ],
+    "goods_services": [
+      "知识产权咨询",
+      "法律研究",
+      "知识产权许可"
+    ],
+    "status": "无效",
+    "status_date": "2022-05-15",
+    "application_date": "2021-05-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0004",
+    "image_path": "demo-logos/logo-04.png",
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0005",
+    "name": "马克透镜",
+    "application_number": "MLDEMO202600005",
+    "applicant": "上海澄蓝科技有限公司",
+    "nice_classes": [
+      9,
+      42
+    ],
+    "goods_services": [
+      "可下载的计算机软件",
+      "图像识别软件",
+      "数据处理设备"
+    ],
+    "status": "已注册",
+    "status_date": "2023-06-15",
+    "application_date": "2022-06-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0005",
+    "image_path": "demo-logos/logo-05.png",
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0006",
+    "name": "标镜",
+    "application_number": "MLDEMO202600006",
+    "applicant": "杭州知权信息技术有限公司",
+    "nice_classes": [
+      9,
+      35,
+      42
+    ],
+    "goods_services": [
+      "商业信息服务",
+      "市场分析",
+      "广告策划"
+    ],
+    "status": "初步审定",
+    "status_date": "2024-07-15",
+    "application_date": "2023-07-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0006",
+    "image_path": "demo-logos/logo-06.png",
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0007",
+    "name": "标识之眼",
+    "application_number": "MLDEMO202600007",
+    "applicant": "北京镜界数据有限公司",
+    "nice_classes": [
+      9,
+      42
+    ],
+    "goods_services": [
+      "软件即服务",
+      "计算机软件设计",
+      "人工智能技术咨询"
+    ],
+    "status": "申请中",
+    "status_date": "2025-08-15",
+    "application_date": "2024-08-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0007",
+    "image_path": "demo-logos/logo-07.png",
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0008",
+    "name": "商标雷达",
+    "application_number": "MLDEMO202600008",
+    "applicant": "深圳标识科技有限公司",
+    "nice_classes": [
+      9,
+      42,
+      45
+    ],
+    "goods_services": [
+      "知识产权咨询",
+      "法律研究",
+      "知识产权许可"
+    ],
+    "status": "无效",
+    "status_date": "2022-01-15",
+    "application_date": "2021-01-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0008",
+    "image_path": "demo-logos/logo-08.png",
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0009",
+    "name": "BrandLens",
+    "application_number": "MLDEMO202600009",
+    "applicant": "上海澄蓝科技有限公司",
+    "nice_classes": [
+      9,
+      42
+    ],
+    "goods_services": [
+      "可下载的计算机软件",
+      "图像识别软件",
+      "数据处理设备"
+    ],
+    "status": "已注册",
+    "status_date": "2023-02-15",
+    "application_date": "2022-02-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0009",
+    "image_path": "demo-logos/logo-09.png",
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0010",
+    "name": "LogoLens",
+    "application_number": "MLDEMO202600010",
+    "applicant": "杭州知权信息技术有限公司",
+    "nice_classes": [
+      9,
+      35,
+      42
+    ],
+    "goods_services": [
+      "商业信息服务",
+      "市场分析",
+      "广告策划"
+    ],
+    "status": "初步审定",
+    "status_date": "2024-03-15",
+    "application_date": "2023-03-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0010",
+    "image_path": "demo-logos/logo-10.png",
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0011",
+    "name": "蓝镜",
+    "application_number": "MLDEMO202600011",
+    "applicant": "北京镜界数据有限公司",
+    "nice_classes": [
+      9,
+      42
+    ],
+    "goods_services": [
+      "软件即服务",
+      "计算机软件设计",
+      "人工智能技术咨询"
+    ],
+    "status": "申请中",
+    "status_date": "2025-04-15",
+    "application_date": "2024-04-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0011",
+    "image_path": "demo-logos/logo-11.png",
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0012",
+    "name": "蓝标",
+    "application_number": "MLDEMO202600012",
+    "applicant": "深圳标识科技有限公司",
+    "nice_classes": [
+      9,
+      42,
+      45
+    ],
+    "goods_services": [
+      "知识产权咨询",
+      "法律研究",
+      "知识产权许可"
+    ],
+    "status": "无效",
+    "status_date": "2022-05-15",
+    "application_date": "2021-05-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0012",
+    "image_path": "demo-logos/logo-12.png",
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0013",
+    "name": "明标",
+    "application_number": "MLDEMO202600013",
+    "applicant": "上海澄蓝科技有限公司",
+    "nice_classes": [
+      9,
+      42
+    ],
+    "goods_services": [
+      "可下载的计算机软件",
+      "图像识别软件",
+      "数据处理设备"
+    ],
+    "status": "已注册",
+    "status_date": "2023-06-15",
+    "application_date": "2022-06-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0013",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0014",
+    "name": "知标",
+    "application_number": "MLDEMO202600014",
+    "applicant": "杭州知权信息技术有限公司",
+    "nice_classes": [
+      9,
+      35,
+      42
+    ],
+    "goods_services": [
+      "商业信息服务",
+      "市场分析",
+      "广告策划"
+    ],
+    "status": "初步审定",
+    "status_date": "2024-07-15",
+    "application_date": "2023-07-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0014",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0015",
+    "name": "标智",
+    "application_number": "MLDEMO202600015",
+    "applicant": "北京镜界数据有限公司",
+    "nice_classes": [
+      9,
+      42
+    ],
+    "goods_services": [
+      "软件即服务",
+      "计算机软件设计",
+      "人工智能技术咨询"
+    ],
+    "status": "申请中",
+    "status_date": "2025-08-15",
+    "application_date": "2024-08-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0015",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0016",
+    "name": "标盾",
+    "application_number": "MLDEMO202600016",
+    "applicant": "深圳标识科技有限公司",
+    "nice_classes": [
+      9,
+      42,
+      45
+    ],
+    "goods_services": [
+      "知识产权咨询",
+      "法律研究",
+      "知识产权许可"
+    ],
+    "status": "无效",
+    "status_date": "2022-01-15",
+    "application_date": "2021-01-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0016",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0017",
+    "name": "法镜",
+    "application_number": "MLDEMO202600017",
+    "applicant": "上海澄蓝科技有限公司",
+    "nice_classes": [
+      9,
+      42
+    ],
+    "goods_services": [
+      "可下载的计算机软件",
+      "图像识别软件",
+      "数据处理设备"
+    ],
+    "status": "已注册",
+    "status_date": "2023-02-15",
+    "application_date": "2022-02-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0017",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0018",
+    "name": "法眼标识",
+    "application_number": "MLDEMO202600018",
+    "applicant": "杭州知权信息技术有限公司",
+    "nice_classes": [
+      9,
+      35,
+      42
+    ],
+    "goods_services": [
+      "商业信息服务",
+      "市场分析",
+      "广告策划"
+    ],
+    "status": "初步审定",
+    "status_date": "2024-03-15",
+    "application_date": "2023-03-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0018",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0019",
+    "name": "知产镜",
+    "application_number": "MLDEMO202600019",
+    "applicant": "北京镜界数据有限公司",
+    "nice_classes": [
+      42
+    ],
+    "goods_services": [
+      "软件即服务",
+      "计算机软件设计",
+      "人工智能技术咨询"
+    ],
+    "status": "申请中",
+    "status_date": "2025-04-15",
+    "application_date": "2024-04-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0019",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0020",
+    "name": "知产雷达",
+    "application_number": "MLDEMO202600020",
+    "applicant": "深圳标识科技有限公司",
+    "nice_classes": [
+      45
+    ],
+    "goods_services": [
+      "知识产权咨询",
+      "法律研究",
+      "知识产权许可"
+    ],
+    "status": "无效",
+    "status_date": "2022-05-15",
+    "application_date": "2021-05-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0020",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0021",
+    "name": "云标",
+    "application_number": "MLDEMO202600021",
+    "applicant": "上海澄蓝科技有限公司",
+    "nice_classes": [
+      9
+    ],
+    "goods_services": [
+      "可下载的计算机软件",
+      "图像识别软件",
+      "数据处理设备"
+    ],
+    "status": "已注册",
+    "status_date": "2023-06-15",
+    "application_date": "2022-06-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0021",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0022",
+    "name": "云标智检",
+    "application_number": "MLDEMO202600022",
+    "applicant": "杭州知权信息技术有限公司",
+    "nice_classes": [
+      35
+    ],
+    "goods_services": [
+      "商业信息服务",
+      "市场分析",
+      "广告策划"
+    ],
+    "status": "初步审定",
+    "status_date": "2024-07-15",
+    "application_date": "2023-07-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0022",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0023",
+    "name": "图标通",
+    "application_number": "MLDEMO202600023",
+    "applicant": "北京镜界数据有限公司",
+    "nice_classes": [
+      42
+    ],
+    "goods_services": [
+      "软件即服务",
+      "计算机软件设计",
+      "人工智能技术咨询"
+    ],
+    "status": "申请中",
+    "status_date": "2025-08-15",
+    "application_date": "2024-08-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0023",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0024",
+    "name": "图形之眼",
+    "application_number": "MLDEMO202600024",
+    "applicant": "深圳标识科技有限公司",
+    "nice_classes": [
+      45
+    ],
+    "goods_services": [
+      "知识产权咨询",
+      "法律研究",
+      "知识产权许可"
+    ],
+    "status": "无效",
+    "status_date": "2022-01-15",
+    "application_date": "2021-01-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0024",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0025",
+    "name": "商标智库",
+    "application_number": "MLDEMO202600025",
+    "applicant": "上海澄蓝科技有限公司",
+    "nice_classes": [
+      9
+    ],
+    "goods_services": [
+      "可下载的计算机软件",
+      "图像识别软件",
+      "数据处理设备"
+    ],
+    "status": "已注册",
+    "status_date": "2023-02-15",
+    "application_date": "2022-02-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0025",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0026",
+    "name": "商标卫士",
+    "application_number": "MLDEMO202600026",
+    "applicant": "杭州知权信息技术有限公司",
+    "nice_classes": [
+      35
+    ],
+    "goods_services": [
+      "商业信息服务",
+      "市场分析",
+      "广告策划"
+    ],
+    "status": "初步审定",
+    "status_date": "2024-03-15",
+    "application_date": "2023-03-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0026",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0027",
+    "name": "商标先锋",
+    "application_number": "MLDEMO202600027",
+    "applicant": "北京镜界数据有限公司",
+    "nice_classes": [
+      42
+    ],
+    "goods_services": [
+      "软件即服务",
+      "计算机软件设计",
+      "人工智能技术咨询"
+    ],
+    "status": "申请中",
+    "status_date": "2025-04-15",
+    "application_date": "2024-04-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0027",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0028",
+    "name": "商标管家",
+    "application_number": "MLDEMO202600028",
+    "applicant": "深圳标识科技有限公司",
+    "nice_classes": [
+      45
+    ],
+    "goods_services": [
+      "知识产权咨询",
+      "法律研究",
+      "知识产权许可"
+    ],
+    "status": "无效",
+    "status_date": "2022-05-15",
+    "application_date": "2021-05-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0028",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0029",
+    "name": "品牌罗盘",
+    "application_number": "MLDEMO202600029",
+    "applicant": "上海澄蓝科技有限公司",
+    "nice_classes": [
+      9
+    ],
+    "goods_services": [
+      "可下载的计算机软件",
+      "图像识别软件",
+      "数据处理设备"
+    ],
+    "status": "已注册",
+    "status_date": "2023-06-15",
+    "application_date": "2022-06-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0029",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0030",
+    "name": "品牌哨兵",
+    "application_number": "MLDEMO202600030",
+    "applicant": "杭州知权信息技术有限公司",
+    "nice_classes": [
+      35
+    ],
+    "goods_services": [
+      "商业信息服务",
+      "市场分析",
+      "广告策划"
+    ],
+    "status": "初步审定",
+    "status_date": "2024-07-15",
+    "application_date": "2023-07-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0030",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0031",
+    "name": "品牌视窗",
+    "application_number": "MLDEMO202600031",
+    "applicant": "北京镜界数据有限公司",
+    "nice_classes": [
+      42
+    ],
+    "goods_services": [
+      "软件即服务",
+      "计算机软件设计",
+      "人工智能技术咨询"
+    ],
+    "status": "申请中",
+    "status_date": "2025-08-15",
+    "application_date": "2024-08-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0031",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0032",
+    "name": "品牌之眼",
+    "application_number": "MLDEMO202600032",
+    "applicant": "深圳标识科技有限公司",
+    "nice_classes": [
+      45
+    ],
+    "goods_services": [
+      "知识产权咨询",
+      "法律研究",
+      "知识产权许可"
+    ],
+    "status": "无效",
+    "status_date": "2022-01-15",
+    "application_date": "2021-01-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0032",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0033",
+    "name": "品牌卫士",
+    "application_number": "MLDEMO202600033",
+    "applicant": "上海澄蓝科技有限公司",
+    "nice_classes": [
+      9
+    ],
+    "goods_services": [
+      "可下载的计算机软件",
+      "图像识别软件",
+      "数据处理设备"
+    ],
+    "status": "已注册",
+    "status_date": "2023-02-15",
+    "application_date": "2022-02-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0033",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0034",
+    "name": "品牌盾",
+    "application_number": "MLDEMO202600034",
+    "applicant": "杭州知权信息技术有限公司",
+    "nice_classes": [
+      35
+    ],
+    "goods_services": [
+      "商业信息服务",
+      "市场分析",
+      "广告策划"
+    ],
+    "status": "初步审定",
+    "status_date": "2024-03-15",
+    "application_date": "2023-03-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0034",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0035",
+    "name": "标律",
+    "application_number": "MLDEMO202600035",
+    "applicant": "北京镜界数据有限公司",
+    "nice_classes": [
+      42
+    ],
+    "goods_services": [
+      "软件即服务",
+      "计算机软件设计",
+      "人工智能技术咨询"
+    ],
+    "status": "申请中",
+    "status_date": "2025-04-15",
+    "application_date": "2024-04-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0035",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0036",
+    "name": "标法通",
+    "application_number": "MLDEMO202600036",
+    "applicant": "深圳标识科技有限公司",
+    "nice_classes": [
+      45
+    ],
+    "goods_services": [
+      "知识产权咨询",
+      "法律研究",
+      "知识产权许可"
+    ],
+    "status": "无效",
+    "status_date": "2022-05-15",
+    "application_date": "2021-05-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0036",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0037",
+    "name": "标法云",
+    "application_number": "MLDEMO202600037",
+    "applicant": "上海澄蓝科技有限公司",
+    "nice_classes": [
+      9
+    ],
+    "goods_services": [
+      "可下载的计算机软件",
+      "图像识别软件",
+      "数据处理设备"
+    ],
+    "status": "已注册",
+    "status_date": "2023-06-15",
+    "application_date": "2022-06-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0037",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0038",
+    "name": "法务智标",
+    "application_number": "MLDEMO202600038",
+    "applicant": "杭州知权信息技术有限公司",
+    "nice_classes": [
+      35
+    ],
+    "goods_services": [
+      "商业信息服务",
+      "市场分析",
+      "广告策划"
+    ],
+    "status": "初步审定",
+    "status_date": "2024-07-15",
+    "application_date": "2023-07-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0038",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0039",
+    "name": "法商镜",
+    "application_number": "MLDEMO202600039",
+    "applicant": "北京镜界数据有限公司",
+    "nice_classes": [
+      42
+    ],
+    "goods_services": [
+      "软件即服务",
+      "计算机软件设计",
+      "人工智能技术咨询"
+    ],
+    "status": "申请中",
+    "status_date": "2025-08-15",
+    "application_date": "2024-08-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0039",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0040",
+    "name": "权利之镜",
+    "application_number": "MLDEMO202600040",
+    "applicant": "深圳标识科技有限公司",
+    "nice_classes": [
+      45
+    ],
+    "goods_services": [
+      "知识产权咨询",
+      "法律研究",
+      "知识产权许可"
+    ],
+    "status": "无效",
+    "status_date": "2022-01-15",
+    "application_date": "2021-01-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0040",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0041",
+    "name": "权盾",
+    "application_number": "MLDEMO202600041",
+    "applicant": "上海澄蓝科技有限公司",
+    "nice_classes": [
+      9
+    ],
+    "goods_services": [
+      "可下载的计算机软件",
+      "图像识别软件",
+      "数据处理设备"
+    ],
+    "status": "已注册",
+    "status_date": "2023-02-15",
+    "application_date": "2022-02-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0041",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0042",
+    "name": "知权",
+    "application_number": "MLDEMO202600042",
+    "applicant": "杭州知权信息技术有限公司",
+    "nice_classes": [
+      35
+    ],
+    "goods_services": [
+      "商业信息服务",
+      "市场分析",
+      "广告策划"
+    ],
+    "status": "初步审定",
+    "status_date": "2024-03-15",
+    "application_date": "2023-03-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0042",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0043",
+    "name": "知产卫士",
+    "application_number": "MLDEMO202600043",
+    "applicant": "北京镜界数据有限公司",
+    "nice_classes": [
+      42
+    ],
+    "goods_services": [
+      "软件即服务",
+      "计算机软件设计",
+      "人工智能技术咨询"
+    ],
+    "status": "申请中",
+    "status_date": "2025-04-15",
+    "application_date": "2024-04-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0043",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0044",
+    "name": "IP Lens",
+    "application_number": "MLDEMO202600044",
+    "applicant": "深圳标识科技有限公司",
+    "nice_classes": [
+      45
+    ],
+    "goods_services": [
+      "知识产权咨询",
+      "法律研究",
+      "知识产权许可"
+    ],
+    "status": "无效",
+    "status_date": "2022-05-15",
+    "application_date": "2021-05-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0044",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0045",
+    "name": "IP Radar",
+    "application_number": "MLDEMO202600045",
+    "applicant": "上海澄蓝科技有限公司",
+    "nice_classes": [
+      9
+    ],
+    "goods_services": [
+      "可下载的计算机软件",
+      "图像识别软件",
+      "数据处理设备"
+    ],
+    "status": "已注册",
+    "status_date": "2023-06-15",
+    "application_date": "2022-06-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0045",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0046",
+    "name": "Trademark Lens",
+    "application_number": "MLDEMO202600046",
+    "applicant": "杭州知权信息技术有限公司",
+    "nice_classes": [
+      35
+    ],
+    "goods_services": [
+      "商业信息服务",
+      "市场分析",
+      "广告策划"
+    ],
+    "status": "初步审定",
+    "status_date": "2024-07-15",
+    "application_date": "2023-07-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0046",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0047",
+    "name": "TradeMark AI",
+    "application_number": "MLDEMO202600047",
+    "applicant": "北京镜界数据有限公司",
+    "nice_classes": [
+      42
+    ],
+    "goods_services": [
+      "软件即服务",
+      "计算机软件设计",
+      "人工智能技术咨询"
+    ],
+    "status": "申请中",
+    "status_date": "2025-08-15",
+    "application_date": "2024-08-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0047",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0048",
+    "name": "MarkScope",
+    "application_number": "MLDEMO202600048",
+    "applicant": "深圳标识科技有限公司",
+    "nice_classes": [
+      45
+    ],
+    "goods_services": [
+      "知识产权咨询",
+      "法律研究",
+      "知识产权许可"
+    ],
+    "status": "无效",
+    "status_date": "2022-01-15",
+    "application_date": "2021-01-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0048",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0049",
+    "name": "MarkGuard",
+    "application_number": "MLDEMO202600049",
+    "applicant": "上海澄蓝科技有限公司",
+    "nice_classes": [
+      9
+    ],
+    "goods_services": [
+      "可下载的计算机软件",
+      "图像识别软件",
+      "数据处理设备"
+    ],
+    "status": "已注册",
+    "status_date": "2023-02-15",
+    "application_date": "2022-02-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0049",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0050",
+    "name": "MarkPilot",
+    "application_number": "MLDEMO202600050",
+    "applicant": "杭州知权信息技术有限公司",
+    "nice_classes": [
+      35
+    ],
+    "goods_services": [
+      "商业信息服务",
+      "市场分析",
+      "广告策划"
+    ],
+    "status": "初步审定",
+    "status_date": "2024-03-15",
+    "application_date": "2023-03-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0050",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0051",
+    "name": "MarkWatch",
+    "application_number": "MLDEMO202600051",
+    "applicant": "北京镜界数据有限公司",
+    "nice_classes": [
+      42
+    ],
+    "goods_services": [
+      "软件即服务",
+      "计算机软件设计",
+      "人工智能技术咨询"
+    ],
+    "status": "申请中",
+    "status_date": "2025-04-15",
+    "application_date": "2024-04-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0051",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0052",
+    "name": "MarkWise",
+    "application_number": "MLDEMO202600052",
+    "applicant": "深圳标识科技有限公司",
+    "nice_classes": [
+      45
+    ],
+    "goods_services": [
+      "知识产权咨询",
+      "法律研究",
+      "知识产权许可"
+    ],
+    "status": "无效",
+    "status_date": "2022-05-15",
+    "application_date": "2021-05-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0052",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0053",
+    "name": "BrandScope",
+    "application_number": "MLDEMO202600053",
+    "applicant": "上海澄蓝科技有限公司",
+    "nice_classes": [
+      9
+    ],
+    "goods_services": [
+      "可下载的计算机软件",
+      "图像识别软件",
+      "数据处理设备"
+    ],
+    "status": "已注册",
+    "status_date": "2023-06-15",
+    "application_date": "2022-06-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0053",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0054",
+    "name": "BrandGuard",
+    "application_number": "MLDEMO202600054",
+    "applicant": "杭州知权信息技术有限公司",
+    "nice_classes": [
+      35
+    ],
+    "goods_services": [
+      "商业信息服务",
+      "市场分析",
+      "广告策划"
+    ],
+    "status": "初步审定",
+    "status_date": "2024-07-15",
+    "application_date": "2023-07-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0054",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0055",
+    "name": "BrandPilot",
+    "application_number": "MLDEMO202600055",
+    "applicant": "北京镜界数据有限公司",
+    "nice_classes": [
+      42
+    ],
+    "goods_services": [
+      "软件即服务",
+      "计算机软件设计",
+      "人工智能技术咨询"
+    ],
+    "status": "申请中",
+    "status_date": "2025-08-15",
+    "application_date": "2024-08-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0055",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0056",
+    "name": "LogoGuard",
+    "application_number": "MLDEMO202600056",
+    "applicant": "深圳标识科技有限公司",
+    "nice_classes": [
+      45
+    ],
+    "goods_services": [
+      "知识产权咨询",
+      "法律研究",
+      "知识产权许可"
+    ],
+    "status": "无效",
+    "status_date": "2022-01-15",
+    "application_date": "2021-01-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0056",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0057",
+    "name": "LogoScope",
+    "application_number": "MLDEMO202600057",
+    "applicant": "上海澄蓝科技有限公司",
+    "nice_classes": [
+      9
+    ],
+    "goods_services": [
+      "可下载的计算机软件",
+      "图像识别软件",
+      "数据处理设备"
+    ],
+    "status": "已注册",
+    "status_date": "2023-02-15",
+    "application_date": "2022-02-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0057",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0058",
+    "name": "商标小镜",
+    "application_number": "MLDEMO202600058",
+    "applicant": "杭州知权信息技术有限公司",
+    "nice_classes": [
+      35
+    ],
+    "goods_services": [
+      "商业信息服务",
+      "市场分析",
+      "广告策划"
+    ],
+    "status": "初步审定",
+    "status_date": "2024-03-15",
+    "application_date": "2023-03-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0058",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0059",
+    "name": "标小智",
+    "application_number": "MLDEMO202600059",
+    "applicant": "北京镜界数据有限公司",
+    "nice_classes": [
+      42
+    ],
+    "goods_services": [
+      "软件即服务",
+      "计算机软件设计",
+      "人工智能技术咨询"
+    ],
+    "status": "申请中",
+    "status_date": "2025-04-15",
+    "application_date": "2024-04-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0059",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  },
+  {
+    "source_record_id": "DEMO-0060",
+    "name": "标查查",
+    "application_number": "MLDEMO202600060",
+    "applicant": "深圳标识科技有限公司",
+    "nice_classes": [
+      45
+    ],
+    "goods_services": [
+      "知识产权咨询",
+      "法律研究",
+      "知识产权许可"
+    ],
+    "status": "无效",
+    "status_date": "2022-05-15",
+    "application_date": "2021-05-01",
+    "source_url": "demo://marklens/trademarks/DEMO-0060",
+    "image_path": null,
+    "is_demo": true,
+    "data_notice": "合成教学数据，不对应真实商标权利。"
+  }
+]

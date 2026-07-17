@@ -1,0 +1,1 @@
+{"ingestion_run_id":"ingest_demo","source_key":"demo-json","status":"completed","fetched_count":60,"created_count":60,"updated_count":0,"skipped_count":0,"failed_count":0,"errors":[],"started_at":"2026-07-13T12:00:00","finished_at":"2026-07-13T12:00:01"}

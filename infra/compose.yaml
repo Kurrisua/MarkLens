@@ -1,0 +1,26 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: marklens-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: marklens
+      MYSQL_USER: marklens
+      MYSQL_PASSWORD: marklens
+      MYSQL_ROOT_PASSWORD: marklens-root
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+    ports:
+      - "3307:3306"
+    volumes:
+      - marklens_mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-umarklens", "-pmarklens"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  marklens_mysql:

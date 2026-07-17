@@ -1,0 +1,13 @@
+{
+  "case_id": "case_demo_001",
+  "trademark": {
+    "name": "MarkLens",
+    "image_url": null
+  },
+  "business_description": "用于商标检索与风险分析的软件服务",
+  "nice_classes": [9, 42],
+  "confirmed_facts": {
+    "intended_region": "中国大陆"
+  },
+  "missing_fields": ["商标图样"]
+}

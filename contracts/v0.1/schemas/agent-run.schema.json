@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://marklens.local/contracts/v0.1/agent-run.schema.json",
+  "title": "AgentRun",
+  "type": "object",
+  "required": ["run_id", "agent", "status", "contract_version", "created_at", "updated_at", "error"],
+  "properties": {
+    "run_id": {"type": "string"},
+    "agent": {"type": "string", "enum": ["orchestration", "retrieval", "risk", "document"]},
+    "status": {"type": "string", "enum": ["queued", "running", "waiting_for_user", "completed", "failed"]},
+    "contract_version": {"type": "string", "const": "v0.1"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "updated_at": {"type": "string", "format": "date-time"},
+    "error": {"type": ["object", "null"]}
+  },
+  "additionalProperties": false
+}

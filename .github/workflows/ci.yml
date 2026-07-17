@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python scripts/validate_contracts.py
+
+  api:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: marklens
+          MYSQL_USER: marklens
+          MYSQL_PASSWORD: marklens
+          MYSQL_ROOT_PASSWORD: marklens-root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -umarklens -pmarklens"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      DATABASE_URL: mysql+pymysql://marklens:marklens@127.0.0.1:3306/marklens?charset=utf8mb4
+      MODEL_RUNTIME_ENABLED: "false"
+      RUN_MYSQL_TESTS: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e "apps/api[dev]"
+      - run: alembic upgrade head
+        working-directory: apps/api
+      - run: PYTHONPATH=. python -m app.seed
+        working-directory: apps/api
+      - run: ruff check apps/api packages scripts
+      - run: pytest
+        working-directory: apps/api
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - run: pnpm install --frozen-lockfile=false
+      - run: pnpm --filter @marklens/web build

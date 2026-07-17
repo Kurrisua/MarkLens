@@ -1,0 +1,79 @@
+openapi: 3.1.0
+info:
+  title: MarkLens API
+  version: 0.2.0
+  description: 教学用商标多模态检索与可信法律 RAG。结果不构成法律意见。
+paths:
+  /health:
+    get: {summary: 依赖和降级状态, responses: {'200': {description: OK}}}
+  /api/v1/dashboard:
+    get: {summary: 工作台聚合信息, responses: {'200': {description: Dashboard}}}
+  /api/v1/assets:
+    post: {summary: 上传并预处理商标图样, responses: {'201': {description: AssetResult}}}
+  /api/v1/assets/{asset_id}/content:
+    get:
+      summary: 读取已校验图片
+      parameters: [{name: asset_id, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: Image}}
+  /api/v1/cases:
+    get: {summary: 最近案件, responses: {'200': {description: CaseContext list}}}
+    post: {summary: 创建事实快照, responses: {'201': {description: CaseContext}}}
+  /api/v1/cases/{case_id}:
+    get:
+      summary: 读取案件
+      parameters: [{name: case_id, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: CaseContext}}
+  /api/v1/searches:
+    post: {summary: 创建异步多模态检索, responses: {'202': {description: AgentRun}}}
+  /api/v1/searches/{search_id}:
+    get:
+      summary: 读取证据包
+      parameters: [{name: search_id, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: EvidenceBundle}}
+  /api/v1/risk-analyses:
+    post: {summary: 创建异步风险分析, responses: {'202': {description: AgentRun}}}
+  /api/v1/risk-analyses/{analysis_id}:
+    get:
+      summary: 读取风险分析
+      parameters: [{name: analysis_id, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: RiskAssessment}}
+  /api/v1/documents:
+    post: {summary: 创建异步报告, responses: {'202': {description: AgentRun}}}
+  /api/v1/documents/{document_id}:
+    get:
+      summary: 读取文书初稿
+      parameters: [{name: document_id, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: DocumentDraft}}
+    put:
+      summary: 保存文书段落并校验
+      parameters: [{name: document_id, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: DocumentDraft}}
+  /api/v1/documents/{document_id}/validate:
+    post:
+      summary: 校验引用和事实一致性
+      parameters: [{name: document_id, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: DocumentDraft}}
+  /api/v1/consultations:
+    post: {summary: 创建异步法律 RAG 咨询, responses: {'202': {description: AgentRun}}}
+  /api/v1/consultations/{consultation_id}:
+    get:
+      summary: 读取咨询答复
+      parameters: [{name: consultation_id, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: ConsultationAnswer}}
+  /api/v1/agent-runs/{id}:
+    get:
+      summary: 轮询智能体任务
+      parameters: [{name: id, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: AgentRun}}
+  /api/v1/sources:
+    get: {summary: 读取服务端注册数据源, responses: {'200': {description: SourceDefinition list}}}
+  /api/v1/sources/{key}/sync:
+    post:
+      summary: 同步已注册数据源
+      parameters: [{name: key, in: path, required: true, schema: {type: string}}]
+      responses: {'202': {description: AgentRun}}
+  /api/v1/ingestion-runs/{id}:
+    get:
+      summary: 读取导入统计和错误
+      parameters: [{name: id, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: IngestionRun}}

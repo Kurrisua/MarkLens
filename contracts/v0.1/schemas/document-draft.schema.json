@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://marklens.local/contracts/v0.1/document-draft.schema.json",
+  "title": "DocumentDraft",
+  "type": "object",
+  "required": ["document_id", "analysis_id", "type", "template_version", "sections", "citations", "validation", "requires_human_review"],
+  "properties": {
+    "document_id": {"type": "string"},
+    "analysis_id": {"type": "string"},
+    "type": {"type": "string", "enum": ["trademark_registration_risk_report"]},
+    "template_version": {"type": "string"},
+    "sections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["key", "title", "content", "citation_ids"],
+        "properties": {
+          "key": {"type": "string"},
+          "title": {"type": "string"},
+          "content": {"type": "string"},
+          "citation_ids": {"type": "array", "items": {"type": "string"}}
+        },
+        "additionalProperties": false
+      }
+    },
+    "citations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["citation_id", "source_id", "title", "locator", "source_url"],
+        "properties": {
+          "citation_id": {"type": "string"},
+          "source_id": {"type": "string"},
+          "title": {"type": "string"},
+          "locator": {"type": "string"},
+          "source_url": {"type": ["string", "null"]}
+        },
+        "additionalProperties": false
+      }
+    },
+    "validation": {
+      "type": "object",
+      "required": ["status", "errors", "warnings"],
+      "properties": {
+        "status": {"type": "string", "enum": ["passed", "warning", "failed"]},
+        "errors": {"type": "array", "items": {"type": "string"}},
+        "warnings": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "requires_human_review": {"type": "boolean", "const": true}
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://marklens.local/contracts/v0.1/risk-assessment.schema.json",
+  "title": "RiskAssessment",
+  "type": "object",
+  "required": ["analysis_id", "search_id", "level", "score", "factors", "legal_references", "uncertainties", "recommendations", "requires_human_review", "score_config_version"],
+  "properties": {
+    "analysis_id": {"type": "string"},
+    "search_id": {"type": "string"},
+    "level": {"type": "string", "enum": ["low", "medium", "high", "insufficient_evidence"]},
+    "score": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+    "factors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "title", "explanation", "evidence_ids"],
+        "properties": {
+          "code": {"type": "string"},
+          "title": {"type": "string"},
+          "explanation": {"type": "string"},
+          "evidence_ids": {"type": "array", "items": {"type": "string"}}
+        },
+        "additionalProperties": false
+      }
+    },
+    "legal_references": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source_id", "title", "locator", "source_url"],
+        "properties": {
+          "source_id": {"type": "string"},
+          "title": {"type": "string"},
+          "locator": {"type": "string"},
+          "source_url": {"type": ["string", "null"]}
+        },
+        "additionalProperties": false
+      }
+    },
+    "uncertainties": {"type": "array", "items": {"type": "string"}},
+    "recommendations": {"type": "array", "items": {"type": "string"}},
+    "requires_human_review": {"type": "boolean", "const": true},
+    "score_config_version": {"type": "string"}
+  },
+  "additionalProperties": false
+}

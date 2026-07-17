@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://marklens.local/contracts/v0.1/evidence-bundle.schema.json",
+  "title": "EvidenceBundle",
+  "type": "object",
+  "required": ["search_id", "case_id", "query", "hits", "warnings", "versions"],
+  "properties": {
+    "search_id": {"type": "string", "minLength": 1},
+    "case_id": {"type": "string", "minLength": 1},
+    "query": {"type": "object"},
+    "hits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["trademark_id", "name", "application_no", "nice_classes", "status", "scores", "reason_codes", "source"],
+        "properties": {
+          "trademark_id": {"type": "string"},
+          "name": {"type": "string"},
+          "application_no": {"type": ["string", "null"]},
+          "nice_classes": {"type": "array", "items": {"type": "integer", "minimum": 1, "maximum": 45}},
+          "status": {"type": "string"},
+          "scores": {
+            "type": "object",
+            "required": ["text", "phonetic", "semantic", "visual", "category", "overall"],
+            "properties": {
+              "text": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+              "phonetic": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+              "semantic": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+              "visual": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+              "category": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+              "overall": {"type": "number", "minimum": 0, "maximum": 1}
+            },
+            "additionalProperties": false
+          },
+          "reason_codes": {"type": "array", "items": {"type": "string"}},
+          "source": {
+            "type": "object",
+            "required": ["dataset", "record_id"],
+            "properties": {
+              "dataset": {"type": "string"},
+              "record_id": {"type": "string"},
+              "source_url": {"type": ["string", "null"]}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "warnings": {"type": "array", "items": {"type": "string"}},
+    "versions": {
+      "type": "object",
+      "required": ["dataset", "retrieval", "scoring"],
+      "properties": {
+        "dataset": {"type": "string"},
+        "retrieval": {"type": "string"},
+        "scoring": {"type": "string"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

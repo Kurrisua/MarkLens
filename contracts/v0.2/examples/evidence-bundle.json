@@ -1,0 +1,1 @@
+{"search_id":"search_demo","case_id":"case_demo","status":"completed","query":{"trademark_name":"MarkLens"},"top_k":10,"evidence_quality":"demo_only","methodology":{"config_version":"heuristic-v1"},"hits":[{"name":"MarkLens","application_number":"MLDEMO202600001","scores":{"overall":1.0},"is_demo":true}],"created_at":"2026-07-13T12:00:01"}

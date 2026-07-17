@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://marklens.local/contracts/v0.1/case-context.schema.json",
+  "title": "CaseContext",
+  "type": "object",
+  "required": ["case_id", "trademark", "business_description", "nice_classes", "confirmed_facts", "missing_fields"],
+  "properties": {
+    "case_id": {"type": "string", "minLength": 1},
+    "trademark": {
+      "type": "object",
+      "required": ["name", "image_url"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "image_url": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "business_description": {"type": "string"},
+    "nice_classes": {
+      "type": "array",
+      "items": {"type": "integer", "minimum": 1, "maximum": 45},
+      "uniqueItems": true
+    },
+    "confirmed_facts": {"type": "object"},
+    "missing_fields": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": false
+}

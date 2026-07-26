@@ -31,6 +31,16 @@ CHANNEL_WEIGHTS = {
     "semantic": 0.15,
     "category": 0.10,
 }
+
+# These values are only used by the separately labelled course exhibit.  Each
+# scenario compares its generated artwork with the archived IPO CZ SWISSCOAT
+# record; ordinary project searches continue to use vector/phash evidence.
+COURSE_SCENARIO_VISUAL_SCORES = {
+    "cz-gradient-high": 0.94,
+    "cz-gradient-low": 0.41,
+    "cz-gradient-very-low": 0.08,
+}
+COURSE_CZ_REFERENCE_RECORD_ID = "CZ-TM-112187"
 HIGH_RISK_THRESHOLD = 0.75
 MEDIUM_RISK_THRESHOLD = 0.50
 ALLOWED_FORMATS = {"PNG": "image/png", "JPEG": "image/jpeg", "WEBP": "image/webp"}
@@ -306,6 +316,14 @@ def is_query_artwork_candidate(case: Any, candidate: Trademark) -> bool:
     return bool(case.image_asset_id and candidate.image_asset_id == case.image_asset_id)
 
 
+def course_scenario_visual_score(case: Any, candidate: Trademark) -> float | None:
+    """Return the declared exhibit score against the real Czech reference only."""
+    if candidate.source_record_id != COURSE_CZ_REFERENCE_RECORD_ID:
+        return None
+    scenario = str((case.facts_snapshot or {}).get("showcase_scenario", ""))
+    return COURSE_SCENARIO_VISUAL_SCORES.get(scenario)
+
+
 def search_trademarks(session: Session, case: Any, top_k: int = 10) -> list[dict[str, Any]]:
     settings = get_settings()
     runtime = LocalModelRuntime(settings)
@@ -391,8 +409,12 @@ def search_trademarks(session: Session, case: Any, top_k: int = 10) -> list[dict
         # opt-in for one seeded case group and is surfaced in the returned score
         # metadata; ordinary searches always use model/phash evidence above.
         visual_basis = "model_or_phash"
+        scenario_visual_score = course_scenario_visual_score(case, candidate)
         showcase = candidate.raw_record.get("visual_showcase")
-        if (
+        if scenario_visual_score is not None:
+            visual_score = scenario_visual_score
+            visual_basis = "course_showcase_configured_gradient"
+        elif (
             isinstance(showcase, dict)
             and case.facts_snapshot.get("visual_showcase_group") == showcase.get("group")
             and isinstance(showcase.get("score"), (int, float))

@@ -7,6 +7,7 @@ from PIL import Image
 from app.config import Settings
 from app.retrieval import (
     blob_to_vector,
+    course_scenario_visual_score,
     normalize_text,
     normalized_weights,
     is_query_artwork_candidate,
@@ -75,3 +76,14 @@ def test_query_artwork_is_not_used_as_its_own_candidate() -> None:
     ]
     filtered = [item for item in candidates if not is_query_artwork_candidate(case, item)]
     assert [item.id for item in filtered] == ["independent", "text-only"]
+
+
+def test_course_gradient_scenarios_only_override_the_czech_reference() -> None:
+    high_case = SimpleNamespace(facts_snapshot={"showcase_scenario": "cz-gradient-high"})
+    low_case = SimpleNamespace(facts_snapshot={"showcase_scenario": "cz-gradient-low"})
+    reference = SimpleNamespace(source_record_id="CZ-TM-112187")
+    unrelated = SimpleNamespace(source_record_id="CZ-TM-OTHER")
+
+    assert course_scenario_visual_score(high_case, reference) == 0.94
+    assert course_scenario_visual_score(low_case, reference) == 0.41
+    assert course_scenario_visual_score(high_case, unrelated) is None

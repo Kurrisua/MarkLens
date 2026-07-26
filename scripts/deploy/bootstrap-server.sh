@@ -41,7 +41,9 @@ umask 077
   printf 'AUTH_SECRET=%s\n' "$auth_secret"
   printf '%s\n' 'COOKIE_SECURE=false'
   printf '%s\n' 'CORS_ORIGINS=http://152.136.27.117'
-  printf '%s\n' 'MODEL_RUNTIME_ENABLED=true'
+  # Start with deterministic CPU-safe retrieval. Enable only after model
+  # weights have been intentionally downloaded and verified on the server.
+  printf '%s\n' 'MODEL_RUNTIME_ENABLED=false'
   printf '%s\n' 'MODEL_CACHE_DIR=.model-cache'
   printf '%s\n' 'UPLOAD_DIR=data/uploads'
   printf '%s\n' 'SOURCE_DATA_DIR=data/sources'
@@ -49,6 +51,7 @@ umask 077
   printf 'DEMO_ADMIN_PASSWORD=%s\n' "$MARKLENS_ADMIN_PASSWORD"
   printf 'HEALTH_CHECK_SECRET=%s\n' "$health_secret"
 } > "$APP_ROOT/.env"
-chmod 600 "$APP_ROOT/.env"
+chown root:marklens "$APP_ROOT/.env"
+chmod 640 "$APP_ROOT/.env"
 
 echo "Server-private MarkLens environment and least-privilege MySQL account created."

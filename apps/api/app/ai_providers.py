@@ -24,26 +24,27 @@ class AIProviderError(RuntimeError):
     """A remote provider did not return the expected response shape."""
 
 
-ProviderKind = Literal["server_default", "openai_compatible", "anthropic"]
+ProviderKind = Literal["openai_compatible", "anthropic"]
 ImageStrategy = Literal["vector", "model"]
 
 
 @dataclass(frozen=True, repr=False)
 class AIRequestConfig:
-    provider: ProviderKind = "server_default"
-    model: str = ""
-    api_key: str = ""
+    provider: ProviderKind
+    model: str
+    api_key: str
     base_url: str | None = None
     image_strategy: ImageStrategy = "vector"
     vision_enabled: bool = False
 
     @property
     def uses_user_key(self) -> bool:
-        return self.provider != "server_default"
+        """Compatibility guard: every accepted configuration is user-supplied."""
+        return True
 
     @property
     def can_review_images(self) -> bool:
-        return self.uses_user_key and self.image_strategy == "model" and self.vision_enabled
+        return self.image_strategy == "model" and self.vision_enabled
 
     @property
     def generation_mode(self) -> str:
@@ -51,8 +52,8 @@ class AIRequestConfig:
 
     @classmethod
     def from_headers(cls, headers: Any) -> AIRequestConfig:
-        provider = str(headers.get("X-Marklens-AI-Provider", "server_default")).strip()
-        if provider not in {"server_default", "openai_compatible", "anthropic"}:
+        provider = str(headers.get("X-Marklens-AI-Provider", "")).strip()
+        if provider not in {"openai_compatible", "anthropic"}:
             raise AIConfigurationError("暂不支持该模型接口格式。")
         model = str(headers.get("X-Marklens-AI-Model", "")).strip()
         api_key = str(headers.get("X-Marklens-AI-Key", "")).strip()
@@ -61,10 +62,8 @@ class AIRequestConfig:
         vision_enabled = str(headers.get("X-Marklens-Vision-Enabled", "false")).lower() == "true"
         if strategy not in {"vector", "model"}:
             raise AIConfigurationError("图片比对方式无效。")
-        if provider == "server_default":
-            return cls()
         if not model or not api_key:
-            raise AIConfigurationError("请选择模型并填写 API Key，或切换回服务端默认模型。")
+            raise AIConfigurationError("请在 AI 设置中选择模型并填写自己的 API Key。")
         if len(api_key) > 512 or len(model) > 160:
             raise AIConfigurationError("模型配置长度超出允许范围。")
         if provider == "openai_compatible":

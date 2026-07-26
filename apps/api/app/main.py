@@ -189,12 +189,25 @@ def request_id(request: Request) -> str:
     )
 
 
-def request_ai_config(request: Request) -> AIRequestConfig:
-    """Parse a browser-only model configuration without recording credentials."""
+def optional_ai_config(request: Request) -> AIRequestConfig | None:
+    """Use a browser-only model configuration only when one was supplied."""
+    if not request.headers.get("X-Marklens-AI-Provider"):
+        return None
     try:
         return AIRequestConfig.from_headers(request.headers)
     except AIConfigurationError as exc:
         raise AppError(422, "AI_CONFIGURATION_INVALID", str(exc)) from exc
+
+
+def require_user_ai_config(request: Request) -> AIRequestConfig:
+    config = optional_ai_config(request)
+    if config is None:
+        raise AppError(
+            422,
+            "AI_CONFIGURATION_REQUIRED",
+            "此功能需要你在 AI 设置中填写自己的模型和 API Key；系统不会使用服务端默认模型。",
+        )
+    return config
 
 
 def error_response(
@@ -249,13 +262,13 @@ async def request_audit_middleware(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Request-ID"] = request.state.request_id
     logger.info(
-        "request_complete request_id=%s method=%s path=%s status=%s elapsed_ms=%s model=%s dataset=%s config=%s",
+        "request_complete request_id=%s method=%s path=%s status=%s elapsed_ms=%s model_mode=%s dataset=%s config=%s",
         request.state.request_id,
         request.method,
         request.url.path,
         response.status_code,
         round((time.perf_counter() - started) * 1000, 2),
-        settings.deepseek_model,
+        "user_supplied_or_deterministic",
         "demo-2026.1",
         settings.retrieval_config_version,
     )
@@ -686,7 +699,7 @@ def app_create_search(
     background_tasks: BackgroundTasks,
     session: Session = Depends(get_db),
     actor: CurrentUser = Depends(current_user),
-    ai_config: AIRequestConfig = Depends(request_ai_config),
+    ai_config: AIRequestConfig | None = Depends(optional_ai_config),
 ) -> dict:
     case = require_owned_case(session, payload.case_id, actor)
     item = SearchRecord(
@@ -755,7 +768,7 @@ def create_project_advisor_message(
     background_tasks: BackgroundTasks,
     session: Session = Depends(get_db),
     actor: CurrentUser = Depends(current_user),
-    ai_config: AIRequestConfig = Depends(request_ai_config),
+    ai_config: AIRequestConfig = Depends(require_user_ai_config),
 ) -> dict:
     require_project_access(session, project_id, actor)
     if payload.case_id:
@@ -855,6 +868,7 @@ def app_create_document(
     background_tasks: BackgroundTasks,
     session: Session = Depends(get_db),
     actor: CurrentUser = Depends(current_user),
+    ai_config: AIRequestConfig = Depends(require_user_ai_config),
 ) -> dict:
     analysis = require_owned_analysis(session, payload.analysis_id, actor)
     existing = session.scalar(
@@ -882,7 +896,7 @@ def app_create_document(
         session.refresh(run)
         return agent_run_dict(run)
     run = create_agent_run(session, "document", request_id(request), owner_id=analysis.owner_id)
-    schedule(background_tasks, run, build_document_operation(analysis.id, payload.document_type))
+    schedule(background_tasks, run, build_document_operation(analysis.id, payload.document_type, ai_config))
     if settings.agent_eager:
         session.refresh(run)
     return agent_run_dict(run)
@@ -1432,17 +1446,14 @@ def health(request: Request) -> dict:
     ):
         raise AppError(404, "RESOURCE_NOT_FOUND", "资源不存在。")
     database_ready, database_detail = database_health()
-    model_ready = bool(settings.deepseek_api_key)
     dependencies = {
         "mysql": {
             "status": "ready" if database_ready else "unavailable",
             "detail": database_detail,
         },
-        "deepseek": {
-            "status": "ready" if model_ready else "degraded",
-            "detail": f"configured: {settings.deepseek_model}"
-            if model_ready
-            else "DEEPSEEK_API_KEY 未配置",
+        "user_supplied_ai": {
+            "status": "ready",
+            "detail": "生成式功能仅使用用户在当前会话中提供的模型配置；服务器不保存默认模型密钥。",
         },
         "local_models": {
             "status": "ready" if settings.model_runtime_enabled else "degraded",
@@ -1452,7 +1463,7 @@ def health(request: Request) -> dict:
         },
     }
     return {
-        "status": "ok" if database_ready and model_ready else "degraded",
+        "status": "ok" if database_ready else "degraded",
         "contract_version": "v0.2",
         "mode": settings.app_env,
         "dependencies": dependencies,

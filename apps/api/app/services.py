@@ -28,7 +28,6 @@ from .models import (
 )
 from .rag import (
     DISCLAIMER,
-    ModelNotConfigured,
     answer_consultation,
     citation_from_document,
     generate_document_sections,
@@ -59,9 +58,7 @@ def create_agent_run(
         request_id=request_id,
         resource_type=resource_type,
         resource_id=resource_id,
-        model_name=settings.deepseek_model
-        if agent_type in {"risk", "document", "consultation"}
-        else None,
+        model_name="user-supplied" if agent_type in {"document", "consultation"} else None,
         dataset_version="demo-2026.1",
         config_version=settings.retrieval_config_version,
         owner_id=owner_id,
@@ -127,10 +124,6 @@ def execute_agent(run_id: str, operation: Callable[[Session, AgentRun], None]) -
         try:
             update_run(session, run, status="running", progress=5, stage="读取事实快照")
             operation(session, run)
-        except ModelNotConfigured as exc:
-            run.error_code = "MODEL_NOT_CONFIGURED"
-            run.error_message = str(exc)
-            update_run(session, run, status="failed", stage="DeepSeek 未配置")
         except Exception as exc:  # persist failure for polling clients
             session.rollback()
             run = session.get(AgentRun, run_id)
@@ -520,7 +513,7 @@ def build_risk_operation(
             uncertainties=narrative["uncertainties"],
             model_metadata={
                 "generation_mode": mode,
-                "model": get_settings().deepseek_model,
+                "model": "deterministic",
                 "score_was_model_generated": False,
             },
         )
@@ -540,7 +533,7 @@ def build_risk_operation(
 
 
 def build_document_operation(
-    analysis_id: str, document_type: str
+    analysis_id: str, document_type: str, ai_config: AIRequestConfig
 ) -> Callable[[Session, AgentRun], None]:
     def operation(session: Session, run: AgentRun) -> None:
         analysis = session.get(RiskAnalysis, analysis_id)
@@ -559,7 +552,7 @@ def build_document_operation(
         )
         citations = [citation_from_document(item) for item in documents]
         update_run(session, run, progress=65, stage="按固定模板生成文书")
-        sections, mode = generate_document_sections(facts, documents)
+        sections, mode = generate_document_sections(facts, documents, ai_config)
         errors = validate_document(sections, citations, facts, analysis.analysis_date)
         draft = DocumentDraft(
             analysis_id=analysis.id,
@@ -589,7 +582,7 @@ def build_document_operation(
 
 
 def build_consultation_operation(
-    consultation_id: str, ai_config: AIRequestConfig | None = None
+    consultation_id: str, ai_config: AIRequestConfig
 ) -> Callable[[Session, AgentRun], None]:
     def operation(session: Session, run: AgentRun) -> None:
         item = session.get(Consultation, consultation_id)

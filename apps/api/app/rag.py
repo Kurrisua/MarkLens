@@ -14,23 +14,18 @@ from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.vectorstores import VectorStore
-from pydantic import BaseModel, Field, SecretStr, model_validator
+from pydantic import BaseModel, Field, model_validator
 from rank_bm25 import BM25Okapi
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from .ai_providers import AIProviderError, AIRequestConfig, generate_json
-from .config import Settings, get_settings
 from .models import LegalChunk, LegalSource
 from .retrieval import LocalModelRuntime, blob_to_vector, cosine_similarity
 from .serialization import json_dumps
 
 DISCLAIMER = "本结果仅用于课程演示和商标风险初筛，不构成法律意见，不替代官方查询、律师审查或行政司法机关的判断。"
 logger = logging.getLogger("marklens.rag")
-
-
-class ModelNotConfigured(RuntimeError):
-    pass
 
 
 class MarkLensEmbeddings(Embeddings):
@@ -253,23 +248,6 @@ SYSTEM_RULES = """你是 MarkLens 商标法律辅助系统。仅处理中国大�
 5. 用克制、专业、可复核的中文写作，结果是可编辑初稿，不替代律师意见。"""
 
 
-def _chat_model(settings: Settings | None = None):
-    settings = settings or get_settings()
-    if not settings.deepseek_api_key:
-        raise ModelNotConfigured("未配置 DEEPSEEK_API_KEY")
-    from langchain_deepseek import ChatDeepSeek
-
-    return ChatDeepSeek(
-        model=settings.deepseek_model,
-        api_key=SecretStr(settings.deepseek_api_key),
-        api_base=settings.deepseek_base_url,
-        extra_body={"thinking": {"type": settings.deepseek_thinking}},
-        temperature=0.1,
-        max_retries=1,
-        timeout=45,
-    )
-
-
 def _evidence_payload(documents: list[Document]) -> list[dict[str, Any]]:
     return [
         {
@@ -287,74 +265,33 @@ def _validated_ids(ids: list[str], documents: list[Document]) -> list[str]:
     return list(dict.fromkeys(item for item in ids if item in allowed))
 
 
-def _invoke_twice(chain: Any, payload: dict[str, Any]) -> Any:
-    first_error: Exception | None = None
-    for _ in range(2):
-        try:
-            return chain.invoke(payload)
-        except ModelNotConfigured:
-            raise
-        except Exception as exc:  # one schema/API retry, then deterministic fallback upstream
-            first_error = exc
-    assert first_error is not None
-    raise first_error
-
-
 def generate_risk_narrative(
     facts: dict[str, Any],
     documents: list[Document],
     risk_score: float,
     risk_level: str,
 ) -> tuple[dict[str, Any], str]:
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", SYSTEM_RULES),
-            (
-                "human",
-                "确定性评分：{risk_score}，等级：{risk_level}\nFACTS_JSON={facts}\nEVIDENCE_JSON={evidence}",
-            ),
-        ]
+    """Risk scoring and explanation remain deterministic without a server model."""
+    top = facts.get("top_candidate", {}) or {}
+    top_name = top.get("name", "在先候选商标")
+    top_scores = top.get("scores", {}) or {}
+    classes = facts.get("nice_classes", []) or []
+    top_classes = top.get("nice_classes", []) or []
+    overlap = sorted(set(classes) & set(top_classes))
+    jurisdiction = top.get("jurisdiction", "待确认")
+    visual = float(top_scores.get("visual") or 0)
+    text = float(top_scores.get("text") or 0)
+    phonetic = float(top_scores.get("phonetic") or 0)
+    semantic = float(top_scores.get("semantic") or 0)
+    category = float(top_scores.get("category") or 0)
+    foreign_notice = (
+        f"候选记录来自 {jurisdiction} 法域，可作为相似标志与检索路径的参考，"
+        "但不能单独替代中国大陆在先权利检索。"
+        if jurisdiction not in {"CN", "DEMO"}
+        else "候选记录仍须结合最新状态、商品服务范围和在先权利链条进一步核验。"
     )
-    try:
-        chain = prompt | _chat_model().with_structured_output(RiskNarrative)
-        result = _invoke_twice(
-            chain,
-            {
-                "risk_score": risk_score,
-                "risk_level": risk_level,
-                "facts": json_dumps(facts),
-                "evidence": json_dumps(_evidence_payload(documents)),
-            },
-        )
-        payload = result.model_dump()
-        payload["citation_ids"] = _validated_ids(payload["citation_ids"], documents)
-        return payload, "deepseek"
-    except Exception as exc:
-        logger.warning(
-            "deepseek_risk_fallback error_type=%s error=%s",
-            type(exc).__name__,
-            str(exc)[:500],
-        )
-        top = facts.get("top_candidate", {}) or {}
-        top_name = top.get("name", "在先候选商标")
-        top_scores = top.get("scores", {}) or {}
-        classes = facts.get("nice_classes", []) or []
-        top_classes = top.get("nice_classes", []) or []
-        overlap = sorted(set(classes) & set(top_classes))
-        jurisdiction = top.get("jurisdiction", "待确认")
-        visual = float(top_scores.get("visual") or 0)
-        text = float(top_scores.get("text") or 0)
-        phonetic = float(top_scores.get("phonetic") or 0)
-        semantic = float(top_scores.get("semantic") or 0)
-        category = float(top_scores.get("category") or 0)
-        foreign_notice = (
-            f"候选记录来自 {jurisdiction} 法域，可作为相似标志与检索路径的参考，"
-            "但不能单独替代中国大陆在先权利检索。"
-            if jurisdiction not in {"CN", "DEMO"}
-            else "候选记录仍须结合最新状态、商品服务范围和在先权利链条进一步核验。"
-        )
-        return (
-            {
+    return (
+        {
                 "risk_factors": [
                     {
                         "title": "候选优先级",
@@ -397,14 +334,14 @@ def generate_risk_narrative(
                     "对高优先级冲突委托专业商标代理或法律人员复核，并保留本报告作为沟通与修订的工作底稿。",
                 ],
                 "uncertainties": [
-                    "模型服务未返回可验证的扩展叙述，当前内容采用确定性规则模板生成。",
+                    "本部分由可复核的确定性规则模板生成，未调用服务端或用户模型。",
                     "本次数据集和图样资料可能不完整，尤其不能替代中国大陆官方在先权利检索。",
                     "商品服务类似、显著性、在先使用和混淆可能性仍需要结合具体事实与专业意见判断。",
                 ],
                 "citation_ids": [f"cite_{item.metadata['chunk_id']}" for item in documents],
-            },
-            "template_fallback",
-        )
+        },
+        "deterministic_template",
+    )
 
 
 def answer_consultation(
@@ -453,52 +390,6 @@ def answer_consultation(
                 },
                 "user_model_fallback",
             )
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", SYSTEM_RULES),
-            ("human", "QUESTION={question}\nFACTS_JSON={facts}\nEVIDENCE_JSON={evidence}"),
-        ]
-    )
-    try:
-        chain = prompt | _chat_model().with_structured_output(ConsultationNarrative)
-        result = _invoke_twice(
-            chain,
-            {
-                "question": question,
-                "facts": json_dumps(facts),
-                "evidence": json_dumps(evidence),
-            },
-        )
-        payload = result.model_dump()
-        payload["citation_ids"] = _validated_ids(payload["citation_ids"], documents)
-        if not payload["citation_ids"]:
-            payload["uncertainties"].append("回答未形成有效引用，请人工复核。")
-        return payload, "deepseek"
-    except ModelNotConfigured:
-        return (
-            {
-                "answer": "当前未配置服务端生成模型。系统已检索到与问题相关的法律资料，请先查看引用；也可以在 AI 调用设置中临时配置自己的模型后重新提问。",
-                "uncertainties": ["未配置生成模型，本次未自动形成法律解释。"],
-                "citation_ids": [f"cite_{item.metadata['chunk_id']}" for item in documents],
-            },
-            "evidence_template",
-        )
-    except Exception as exc:
-        logger.warning(
-            "deepseek_consultation_fallback error_type=%s error=%s",
-            type(exc).__name__,
-            str(exc)[:500],
-        )
-        return (
-            {
-                "answer": "模型服务暂时不可用。已检索到相关资料，但为避免生成无法校验的法律结论，本次仅返回证据，请查看右侧引用并人工复核。",
-                "uncertainties": ["DeepSeek 结构化输出失败，未自动生成确定性意见。"],
-                "citation_ids": [f"cite_{item.metadata['chunk_id']}" for item in documents],
-            },
-            "template_fallback",
-        )
-
-
 def _candidate_fallback_text(records: list[dict[str, Any]], heading: str) -> str:
     if not records:
         return f"{heading}：当前事实快照未提供可供逐项评价的候选记录。"
@@ -737,6 +628,7 @@ def _professional_fallback_sections(
 def generate_document_sections(
     facts: dict[str, Any],
     documents: list[Document],
+    ai_config: AIRequestConfig,
 ) -> tuple[list[dict[str, Any]], str]:
     prompt = ChatPromptTemplate.from_messages(
         [
@@ -765,13 +657,16 @@ def generate_document_sections(
         ]
     )
     try:
-        chain = prompt | _chat_model().with_structured_output(DocumentNarrative)
-        result = _invoke_twice(
-            chain,
-            {
-                "facts": json_dumps(facts),
-                "evidence": json_dumps(_evidence_payload(documents)),
-            },
+        result = DocumentNarrative.model_validate(
+            generate_json(
+                ai_config,
+                instruction=(
+                    f"{SYSTEM_RULES}\n请起草一份供企业法务或知识产权从业者复核的中国商标注册风险评估报告。"
+                    "返回八节：usage、facts、method、candidates、risk、law、suggestions、limitations。"
+                    "每节返回 section_id、title、content、citation_ids；不得虚构事实或引用。\n"
+                    f"FACTS_JSON={json_dumps(facts)}\nEVIDENCE_JSON={json_dumps(_evidence_payload(documents))}"
+                ),
+            )
         )
         allowed = {f"cite_{item.metadata['chunk_id']}" for item in documents}
         sections = [section.model_dump() for section in result.sections]
@@ -781,12 +676,10 @@ def generate_document_sections(
             section["citation_ids"] = [
                 item for item in section.get("citation_ids", []) if item in allowed
             ]
-        return sections, "deepseek"
-    except ModelNotConfigured:
-        raise
+        return sections, ai_config.generation_mode
     except Exception as exc:
         logger.warning(
-            "deepseek_document_fallback error_type=%s error=%s",
+            "user_model_document_fallback error_type=%s error=%s",
             type(exc).__name__,
             str(exc)[:500],
         )

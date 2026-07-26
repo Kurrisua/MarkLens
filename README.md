@@ -63,7 +63,7 @@ make dev-web
 - API：`http://localhost:8000`
 - OpenAPI：`http://localhost:8000/docs`
 
-在 `.env` 中填写 `DEEPSEEK_API_KEY` 后，风险解释、法律咨询和文书生成链才会运行。未配置时，多模态检索仍可使用，模型任务会以 `MODEL_NOT_CONFIGURED` 明确失败。
+风险初筛始终可以使用本地可复核规则完成。品牌顾问和 AI 报告由用户在网页「AI 设置」中临时填写自己的模型与 API Key；密钥不写入数据库，也不配置为服务器默认模型。
 
 首次本地模型下载约数百 MB，可提前执行：
 

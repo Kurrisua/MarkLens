@@ -1,4 +1,4 @@
-export type AIProvider = "server_default" | "openai_compatible" | "anthropic";
+export type AIProvider = "openai_compatible" | "anthropic";
 export type ImageStrategy = "vector" | "model";
 
 export interface AISessionConfig {
@@ -11,7 +11,7 @@ export interface AISessionConfig {
 }
 
 const defaultConfig: AISessionConfig = {
-  provider: "server_default", model: "", apiKey: "", baseUrl: "https://api.openai.com/v1",
+  provider: "openai_compatible", model: "", apiKey: "", baseUrl: "https://api.openai.com/v1",
   imageStrategy: "vector", visionEnabled: false,
 };
 
@@ -21,7 +21,8 @@ export const aiSession = {
   get: (): AISessionConfig => ({ ...current }),
   set: (next: AISessionConfig) => { current = { ...next }; },
   clear: () => { current = { ...defaultConfig }; },
-  headers: (): HeadersInit => current.provider === "server_default" ? {} : {
+  isConfigured: (): boolean => Boolean(current.model.trim() && current.apiKey.trim()),
+  headers: (): HeadersInit => !current.model.trim() || !current.apiKey.trim() ? {} : {
     "X-Marklens-AI-Provider": current.provider,
     "X-Marklens-AI-Model": current.model,
     "X-Marklens-AI-Key": current.apiKey,

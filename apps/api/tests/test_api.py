@@ -8,7 +8,6 @@ client = TestClient(main_module.app)
 
 def test_health_reports_contract_and_dependencies(monkeypatch) -> None:
     monkeypatch.setattr(main_module, "database_health", lambda: (True, "connected"))
-    monkeypatch.setattr(main_module.settings, "deepseek_api_key", "test-key")
     monkeypatch.setattr(main_module.settings, "model_runtime_enabled", False)
 
     response = client.get("/health")
@@ -16,7 +15,7 @@ def test_health_reports_contract_and_dependencies(monkeypatch) -> None:
     assert response.status_code == 200
     assert response.json()["contract_version"] == "v0.2"
     assert response.json()["dependencies"]["mysql"]["status"] == "ready"
-    assert response.json()["dependencies"]["deepseek"]["status"] == "ready"
+    assert response.json()["dependencies"]["user_supplied_ai"]["status"] == "ready"
 
 
 def test_legacy_unprotected_case_endpoint_is_retired() -> None:

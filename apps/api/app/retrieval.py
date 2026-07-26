@@ -373,7 +373,20 @@ def search_trademarks(session: Session, case: Any, top_k: int = 10) -> list[dict
                 candidate_asset.phash if candidate_asset else None,
             ),
         )
-        scores: dict[str, float | None] = {
+        # A separately labelled course exhibit can provide a stable visual
+        # gradient when presenting the retrieval pipeline.  It is deliberately
+        # opt-in for one seeded case group and is surfaced in the returned score
+        # metadata; ordinary searches always use model/phash evidence above.
+        visual_basis = "model_or_phash"
+        showcase = candidate.raw_record.get("visual_showcase")
+        if (
+            isinstance(showcase, dict)
+            and case.facts_snapshot.get("visual_showcase_group") == showcase.get("group")
+            and isinstance(showcase.get("score"), (int, float))
+        ):
+            visual_score = round(float(showcase["score"]), 6)
+            visual_basis = "course_showcase_configured_gradient"
+        scores: dict[str, Any] = {
             "visual": visual_score,
             "text": text_similarity(query_text, candidate.name),
             "phonetic": phonetic_similarity(query_text, candidate.name),
@@ -381,6 +394,7 @@ def search_trademarks(session: Session, case: Any, top_k: int = 10) -> list[dict
             "category": _class_similarity(case.nice_classes, candidate.nice_classes),
         }
         overall, applied_weights = weighted_score(scores)
+        scores["visual_basis"] = visual_basis
         source = sources[candidate.source_id]
         ranked.append(
             {
@@ -400,4 +414,17 @@ def search_trademarks(session: Session, case: Any, top_k: int = 10) -> list[dict
         recalled_ids.update(item["trademark"].id for item in channel_ranked)
     merged = [item for item in ranked if item["trademark"].id in recalled_ids]
     merged.sort(key=lambda item: item["scores"]["overall"], reverse=True)
+    showcase_group = case.facts_snapshot.get("visual_showcase_group")
+    if showcase_group:
+        # Keep the complete declared gradient visible in the dedicated course
+        # exhibit.  This never applies to ordinary user searches.
+        showcase_items = [
+            item
+            for item in ranked
+            if isinstance(item["trademark"].raw_record.get("visual_showcase"), dict)
+            and item["trademark"].raw_record["visual_showcase"].get("group") == showcase_group
+        ]
+        showcase_items.sort(key=lambda item: float(item["scores"].get("visual") or 0), reverse=True)
+        showcase_ids = {item["trademark"].id for item in showcase_items}
+        merged = showcase_items + [item for item in merged if item["trademark"].id not in showcase_ids]
     return merged[:top_k]

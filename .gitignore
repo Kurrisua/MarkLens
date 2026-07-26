@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+!.env.production.example
 
 # Python
 __pycache__/
@@ -39,3 +40,14 @@ data/mysql84-instance/
 *.onnx_data
 *.db
 *.sqlite3
+
+# Application-owned runtime data (never commit a local user's files).
+apps/api/data/uploads/
+apps/api/data/raw/
+apps/api/data/processed/
+apps/api/data/indexes/
+apps/api/.model-cache/
+
+# Local validation artefacts. Curated sample attachments live in output/attachments/.
+tmp/
+output/.DS_Store

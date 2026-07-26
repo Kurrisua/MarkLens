@@ -10,7 +10,7 @@ describe("API contract client", () => {
       error: { code: "MODEL_NOT_CONFIGURED", message: "未配置模型", request_id: "req_test" }
     }), { status: 503, headers: { "Content-Type": "application/json" } })));
 
-    await expect(api.createConsultation("测试问题")).rejects.toMatchObject({
+    await expect(api.login({ email: "demo@example.com", password: "password-123" })).rejects.toMatchObject({
       code: "MODEL_NOT_CONFIGURED",
       requestId: "req_test"
     } satisfies Partial<ApiError>);
@@ -20,7 +20,7 @@ describe("API contract client", () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ run_id: "run-1" }), { status: 202 }));
     vi.stubGlobal("fetch", fetchMock);
     await api.createSearch("case-1");
-    expect(fetchMock).toHaveBeenCalledWith("/api/v1/searches", expect.objectContaining({ method: "POST" }));
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/searches", expect.objectContaining({ method: "POST" }));
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ case_id: "case-1", top_k: 10 });
   });
 });

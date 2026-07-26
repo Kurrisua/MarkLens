@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import re
 import zipfile
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass
@@ -141,10 +142,17 @@ class RegisteredHttpSourceAdapter(TrademarkSourceAdapter, ABC):
 
 
 IPO_CZ_DATASET_URL = (
-    "https://isdv.upv.gov.cz/webapp/webapp.opendata.datovasada"
-    "?ptyp=tm96&pid=20260620diff"
+    "https://isdv.upv.gov.cz/webapp/webapp.opendata.datovasada?ptyp=tm96&pid=20260620diff"
 )
 IPO_CZ_TERMS_URL = "https://isdv.upv.gov.cz/doc/opendata/doc/podminky_uziti.html"
+
+
+def ipo_cz_dataset_url(release: str) -> str:
+    """Return the official metadata URL for a YYYY-MM-DD daily increment."""
+    return (
+        "https://isdv.upv.gov.cz/webapp/webapp.opendata.datovasada?ptyp=tm96&pid="
+        f"{release.replace('-', '')}diff"
+    )
 
 IPO_CZ_STATUS = {
     "1": "申请中",
@@ -195,7 +203,13 @@ def _applicant_name(root: ElementTree.Element) -> str:
     )
 
 
-def parse_ipo_cz_st96_record(xml_content: bytes, member_name: str) -> dict[str, Any]:
+def parse_ipo_cz_st96_record(
+    xml_content: bytes,
+    member_name: str,
+    *,
+    source_url: str = IPO_CZ_DATASET_URL,
+    data_release: str = "2026-06-20",
+) -> dict[str, Any]:
     root = ElementTree.fromstring(xml_content)
     application_number = _first_xml_text(root, "ApplicationNumberText")
     if not application_number:
@@ -216,11 +230,7 @@ def parse_ipo_cz_st96_record(xml_content: bytes, member_name: str) -> dict[str, 
     if image_filename and "/" in member_name:
         image_member = f"{member_name.rsplit('/', 1)[0]}/{image_filename}"
     operation = next(
-        (
-            value
-            for key, value in root.attrib.items()
-            if _local_name(key) == "operationCategory"
-        ),
+        (value for key, value in root.attrib.items() if _local_name(key) == "operationCategory"),
         None,
     )
     registration_date = _first_xml_text(root, "RegistrationDate")
@@ -234,7 +244,7 @@ def parse_ipo_cz_st96_record(xml_content: bytes, member_name: str) -> dict[str, 
         "status": IPO_CZ_STATUS.get(status_code, f"状态代码 {status_code}"),
         "status_date": registration_date,
         "application_date": _first_xml_text(root, "ApplicationDate"),
-        "source_url": IPO_CZ_DATASET_URL,
+        "source_url": source_url,
         "is_demo": False,
         "jurisdiction": "CZ",
         "registration_number": _first_xml_text(root, "RegistrationNumber"),
@@ -243,7 +253,7 @@ def parse_ipo_cz_st96_record(xml_content: bytes, member_name: str) -> dict[str, 
         "operation_category": operation,
         "source_member": member_name,
         "image_zip_member": image_member,
-        "data_release": "2026-06-20",
+        "data_release": data_release,
     }
 
 
@@ -296,6 +306,80 @@ class IpoCzSt96Adapter(TrademarkSourceAdapter):
     def image_bytes(self, member_name: str) -> bytes:
         with zipfile.ZipFile(self.path) as archive:
             return archive.read(member_name)
+
+
+class IpoCzSt96BatchAdapter(TrademarkSourceAdapter):
+    """Ingest a local batch of official IPO CZ daily ST.96 increments.
+
+    Each archive remains an audit attribute on its record. A single stable source key means an
+    application updated in a later daily package is refreshed rather than duplicated.
+    """
+
+    adapter_type = "st96-xml-batch"
+    source_key = "ipo-cz-st96-daily-batch"
+    display_name = "捷克工业产权局真实商标日增量批次（ST.96）"
+
+    def __init__(self, directory: Path) -> None:
+        self.directory = directory
+        self._cache: list[dict[str, Any]] | None = None
+
+    def license_info(self) -> SourceLicense:
+        return SourceLicense(
+            "IPO CZ 开放数据自由使用条款",
+            IPO_CZ_TERMS_URL,
+            "官方国家商标 ST.96 日增量；可自由提取和使用，数据集声明不含个人数据。",
+        )
+
+    def _archives(self) -> list[Path]:
+        return sorted(self.directory.glob("OPENDATAST96_TM_CZ_DIFF_*_0001.zip"))
+
+    def health_check(self) -> tuple[bool, str]:
+        count = len(self._archives())
+        return count > 0, f"ready · {count} 个官方日增量包" if count else "尚未下载官方日增量包"
+
+    @staticmethod
+    def _release_from_filename(path: Path) -> str:
+        matched = re.search(r"DIFF_(\d{2})-(\d{2})-(\d{4})_", path.name)
+        if not matched:
+            raise ValueError(f"无法从官方 ZIP 文件名识别发布日期：{path.name}")
+        day, month, year = matched.groups()
+        return f"{year}-{month}-{day}"
+
+    def _records(self) -> list[dict[str, Any]]:
+        if self._cache is None:
+            records: list[dict[str, Any]] = []
+            for archive_path in self._archives():
+                release = self._release_from_filename(archive_path)
+                metadata_url = ipo_cz_dataset_url(release)
+                with zipfile.ZipFile(archive_path) as archive:
+                    members = sorted(
+                        name for name in archive.namelist() if name.lower().endswith(".xml")
+                    )
+                    for member in members:
+                        record = parse_ipo_cz_st96_record(
+                            archive.read(member),
+                            f"{archive_path.name}:{member}",
+                            source_url=metadata_url,
+                            data_release=release,
+                        )
+                        record["source_archive"] = archive_path.name
+                        records.append(record)
+            self._cache = records
+        return self._cache
+
+    def fetch_page(self, cursor: str | None, limit: int) -> SourcePage:
+        records = self._records()
+        start = int(cursor or 0)
+        page = records[start : start + limit]
+        next_index = start + len(page)
+        return SourcePage(
+            page,
+            str(next_index) if next_index < len(records) else None,
+            next_index >= len(records),
+        )
+
+    def normalize(self, raw_record: dict[str, Any]) -> TrademarkIngestRecord:
+        return normalize_generic_record(raw_record)
 
 
 def _date(value: Any) -> date | None:
@@ -382,10 +466,9 @@ def build_registry() -> SourceRegistry:
         )
     )
     registry.register(
-        IpoCzSt96Adapter(
-            settings.source_data_dir.parent / "raw" / "ipo-cz-20260620" / "source.zip"
-        )
+        IpoCzSt96Adapter(settings.source_data_dir.parent / "raw" / "ipo-cz-20260620" / "source.zip")
     )
+    registry.register(IpoCzSt96BatchAdapter(settings.source_data_dir.parent / "raw" / "ipo-cz-daily"))
     return registry
 
 

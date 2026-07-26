@@ -19,6 +19,7 @@ from rank_bm25 import BM25Okapi
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from .ai_providers import AIProviderError, AIRequestConfig, generate_json
 from .config import Settings, get_settings
 from .models import LegalChunk, LegalSource
 from .retrieval import LocalModelRuntime, blob_to_vector, cosine_similarity
@@ -328,30 +329,78 @@ def generate_risk_narrative(
         payload = result.model_dump()
         payload["citation_ids"] = _validated_ids(payload["citation_ids"], documents)
         return payload, "deepseek"
-    except ModelNotConfigured:
-        raise
     except Exception as exc:
         logger.warning(
             "deepseek_risk_fallback error_type=%s error=%s",
             type(exc).__name__,
             str(exc)[:500],
         )
-        top_name = facts.get("top_candidate", {}).get("name", "在先候选商标")
+        top = facts.get("top_candidate", {}) or {}
+        top_name = top.get("name", "在先候选商标")
+        top_scores = top.get("scores", {}) or {}
+        classes = facts.get("nice_classes", []) or []
+        top_classes = top.get("nice_classes", []) or []
+        overlap = sorted(set(classes) & set(top_classes))
+        jurisdiction = top.get("jurisdiction", "待确认")
+        visual = float(top_scores.get("visual") or 0)
+        text = float(top_scores.get("text") or 0)
+        phonetic = float(top_scores.get("phonetic") or 0)
+        semantic = float(top_scores.get("semantic") or 0)
+        category = float(top_scores.get("category") or 0)
+        foreign_notice = (
+            f"候选记录来自 {jurisdiction} 法域，可作为相似标志与检索路径的参考，"
+            "但不能单独替代中国大陆在先权利检索。"
+            if jurisdiction not in {"CN", "DEMO"}
+            else "候选记录仍须结合最新状态、商品服务范围和在先权利链条进一步核验。"
+        )
         return (
             {
                 "risk_factors": [
-                    {"title": "近似候选", "detail": f"{top_name} 的综合相似度进入当前风险区间。"},
                     {
-                        "title": "类别关系",
-                        "detail": "指定商品或服务类别存在重合或关联，需要结合类似群进一步复核。",
+                        "title": "候选优先级",
+                        "detail": f"{top_name} 的综合相似度为 {risk_score:.2%}，进入本次结果的优先复核范围。"
+                        "该分数用于排序，不能直接等同于注册成功率或混淆结论。",
+                    },
+                    {
+                        "title": "文字、读音与语义",
+                        "detail": f"文字 {text:.0%}、读音 {phonetic:.0%}、语义 {semantic:.0%}。"
+                        "应重点识别是否存在相同核心词、近似发音、翻译对应或容易被记住的共同部分。",
+                    },
+                    {
+                        "title": "图样比对",
+                        "detail": f"图样维度为 {visual:.0%}。应分别观察整体轮廓、主体构图、主要色彩与显著识别元素；"
+                        "图样分数不足以替代人工视觉判断。",
+                    },
+                    {
+                        "title": "商品服务关系",
+                        "detail": (f"双方在第 {'、'.join(map(str, overlap))} 类存在重合。" if overlap else "当前类别未完全重合，仍应核对具体商品服务项目、类似群和实际经营场景。")
+                        + f" 类别维度得分为 {category:.0%}。",
+                    },
+                    {"title": "数据法域边界", "detail": foreign_notice},
+                    {
+                        "title": "证据覆盖度",
+                        "detail": f"本次共形成 {len(facts.get('candidates', []) or [])} 条优先候选。"
+                        "结果是基于当前可访问数据的初筛快照，未覆盖所有历史申请、异议与在先使用证据。",
                     },
                 ],
-                "counter_evidence": ["当前比较基于教学样本，未覆盖完整官方在先权利数据。"],
-                "suggestions": [
-                    "调整主要识别文字或图形构图后重新检索。",
-                    "提交前进行官方数据库检索并由专业人员复核。",
+                "counter_evidence": [
+                    "当前分数是多通道检索排序，不是行政审查结论；任何单项较高都需要与整体印象共同判断。",
+                    "若候选的商品服务项目与实际计划经营内容差异较大，混淆可能性可能低于类别标签呈现的程度。",
+                    "候选状态、权利范围和最新程序进展需要在正式提交前以官方记录再次核实。",
                 ],
-                "uncertainties": ["模型服务返回异常，已使用确定性模板。"],
+                "suggestions": [
+                    "先将候选的文字、读音、图样和类别四个维度分别留档，明确本次最需要调整的主要识别元素。",
+                    "对核心文字准备 2 至 3 个替代写法或命名方案，修改后分别进行同类别和相邻类别复检。",
+                    "如包含图样，保留黑白稿、彩色稿和主要构图说明，重点比较轮廓、中心图形与高辨识度符号。",
+                    "把实际准备提供的商品或服务拆分到具体项目，核对是否与候选的类似群或主营范围产生实质关联。",
+                    "在提交前补充中国商标网的最新检索、同名/近音/近形扩展检索以及候选状态核验。",
+                    "对高优先级冲突委托专业商标代理或法律人员复核，并保留本报告作为沟通与修订的工作底稿。",
+                ],
+                "uncertainties": [
+                    "模型服务未返回可验证的扩展叙述，当前内容采用确定性规则模板生成。",
+                    "本次数据集和图样资料可能不完整，尤其不能替代中国大陆官方在先权利检索。",
+                    "商品服务类似、显著性、在先使用和混淆可能性仍需要结合具体事实与专业意见判断。",
+                ],
                 "citation_ids": [f"cite_{item.metadata['chunk_id']}" for item in documents],
             },
             "template_fallback",
@@ -362,6 +411,7 @@ def answer_consultation(
     question: str,
     facts: dict[str, Any],
     documents: list[Document],
+    ai_config: AIRequestConfig | None = None,
 ) -> tuple[dict[str, Any], str]:
     if not documents:
         return (
@@ -372,6 +422,37 @@ def answer_consultation(
             },
             "evidence_refusal",
         )
+    evidence = _evidence_payload(documents)
+    if ai_config and ai_config.uses_user_key:
+        try:
+            result = ConsultationNarrative.model_validate(
+                generate_json(
+                    ai_config,
+                    instruction=(
+                        f"{SYSTEM_RULES}\n"
+                        "你是项目级品牌法律顾问。只基于给出的事实和证据回答问题；"
+                        "不得虚构来源，风险分数由系统决定。\n"
+                        f"QUESTION={question}\nFACTS_JSON={json_dumps(facts)}\n"
+                        f"EVIDENCE_JSON={json_dumps(evidence)}\n"
+                        "JSON 结构：{answer:string, uncertainties:string[], citation_ids:string[]}。"
+                    ),
+                )
+            )
+            payload = result.model_dump()
+            payload["citation_ids"] = _validated_ids(payload["citation_ids"], documents)
+            if not payload["citation_ids"]:
+                payload["uncertainties"].append("回答未形成有效引用，请人工复核。")
+            return payload, ai_config.generation_mode
+        except (AIProviderError, ValueError) as exc:
+            logger.warning("user_model_consultation_fallback error_type=%s", type(exc).__name__)
+            return (
+                {
+                    "answer": "用户配置的模型未能返回可验证答复。系统保留了已检索到的法律证据，请根据引用人工复核后再提问。",
+                    "uncertainties": ["本次用户模型调用失败，未使用其输出形成结论。"],
+                    "citation_ids": [f"cite_{item.metadata['chunk_id']}" for item in documents],
+                },
+                "user_model_fallback",
+            )
     prompt = ChatPromptTemplate.from_messages(
         [
             ("system", SYSTEM_RULES),
@@ -385,7 +466,7 @@ def answer_consultation(
             {
                 "question": question,
                 "facts": json_dumps(facts),
-                "evidence": json_dumps(_evidence_payload(documents)),
+                "evidence": json_dumps(evidence),
             },
         )
         payload = result.model_dump()
@@ -394,7 +475,14 @@ def answer_consultation(
             payload["uncertainties"].append("回答未形成有效引用，请人工复核。")
         return payload, "deepseek"
     except ModelNotConfigured:
-        raise
+        return (
+            {
+                "answer": "当前未配置服务端生成模型。系统已检索到与问题相关的法律资料，请先查看引用；也可以在 AI 调用设置中临时配置自己的模型后重新提问。",
+                "uncertainties": ["未配置生成模型，本次未自动形成法律解释。"],
+                "citation_ids": [f"cite_{item.metadata['chunk_id']}" for item in documents],
+            },
+            "evidence_template",
+        )
     except Exception as exc:
         logger.warning(
             "deepseek_consultation_fallback error_type=%s error=%s",

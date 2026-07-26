@@ -22,6 +22,7 @@ export interface AssetResult {
   phash: string | null;
   created_at: string;
 }
+export interface ProjectAttachment { attachment_id: string; filename: string; mime_type: string; normalized_text: string; structure: { extracted?: { trademark_name?: string; business_description?: string; nice_classes?: number[] }; [key: string]: unknown }; extracted_image_asset_id: string | null; created_at: string }
 
 export interface CaseContext {
   case_id: string;
@@ -49,6 +50,7 @@ export interface AgentRun {
 
 export interface ScoreBreakdown {
   visual: number | null;
+  visual_basis?: string | null;
   text: number | null;
   phonetic: number | null;
   semantic: number | null;
@@ -77,6 +79,7 @@ export interface TrademarkEvidence {
   scores: ScoreBreakdown;
   reasons: string[];
   ocr_evidence: { text: string; confirmed: boolean } | null;
+  visual_review: { status: string; score?: number; reason: string; mode?: string; notice?: string } | null;
   model_versions: Record<string, string>;
 }
 
@@ -148,6 +151,7 @@ export interface ConsultationAnswer {
   generation_mode: string;
   created_at: string;
 }
+export interface ProjectAdvisorMessage extends ConsultationAnswer { project_id: string; case_id: string | null }
 
 export interface SourceDefinition {
   source_key: string;
@@ -184,3 +188,20 @@ export interface Dashboard {
   data_version: string;
   legal_version: string;
 }
+
+export type UserRole = "user" | "operator" | "admin";
+export interface CurrentUser { user_id: string; email: string; display_name: string; roles: UserRole[] }
+export interface AuthResponse { access_token: string; token_type: "bearer"; user: CurrentUser }
+export interface Project {
+  project_id: string; name: string; business_description: string; status: string; owner_id: string;
+  case_count: number; created_at: string; updated_at: string;
+}
+export interface AppDashboard { projects: Project[]; learning_progress: { attempts: number; correct: number } }
+export interface LearningTopic { topic_id: string; slug: string; title: string; summary: string; article_count: number }
+export interface LearningArticle { article_id: string; title: string; body: string; citations: Array<Record<string, unknown>> }
+export interface LearningVideo { video_id: string; topic_slug: string; topic_title: string; title: string; provider: string; external_url: string; duration_label: string; learning_objective: string; is_published: boolean }
+export interface PracticeQuestion { question_id: string; title: string; prompt: string; options: Array<{ id: string; label: string }>; difficulty: string }
+export interface OpsPracticeQuestion extends PracticeQuestion { correct_option: string; explanation: string; is_published: boolean }
+export interface PracticeAttempt { attempt_id: string; is_correct: boolean; explanation: string }
+export interface OpsOverview { users: number; projects: number; runs: Record<string, number>; published_topics: number }
+export interface AdminUser { user_id: string; email: string; display_name: string; status: string; roles: UserRole[]; created_at: string }

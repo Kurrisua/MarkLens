@@ -10,12 +10,14 @@ from typing import Any
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
+from .ai_providers import AIProviderError, AIRequestConfig, generate_json
 from .config import get_settings
 from .models import (
     AgentRun,
     CaseRecord,
     Consultation,
     DocumentDraft,
+    ImageAsset,
     IngestionRun,
     LegalSource,
     RiskAnalysis,
@@ -48,6 +50,8 @@ def create_agent_run(
     request_id: str | None,
     resource_type: str | None = None,
     resource_id: str | None = None,
+    owner_id: str | None = None,
+    visibility: str = "user",
 ) -> AgentRun:
     settings = get_settings()
     run = AgentRun(
@@ -60,6 +64,8 @@ def create_agent_run(
         else None,
         dataset_version="demo-2026.1",
         config_version=settings.retrieval_config_version,
+        owner_id=owner_id,
+        visibility=visibility,
     )
     session.add(run)
     session.commit()
@@ -191,6 +197,7 @@ def search_dict(session: Session, search: SearchRecord) -> dict[str, Any]:
                 "scores": hit.scores,
                 "reasons": hit.reasons,
                 "ocr_evidence": hit.evidence.get("ocr_evidence"),
+                "visual_review": hit.evidence.get("visual_review"),
                 "model_versions": hit.evidence.get("model_versions", {}),
             }
         )
@@ -269,7 +276,69 @@ def consultation_dict(item: Consultation) -> dict[str, Any]:
     }
 
 
-def build_search_operation(search_id: str) -> Callable[[Session, AgentRun], None]:
+def _safe_asset_bytes(asset: ImageAsset) -> bytes | None:
+    """Read a local image only after validating it remains inside upload_dir."""
+    settings = get_settings()
+    root = settings.upload_dir.resolve()
+    path = (root / asset.storage_key).resolve()
+    if root not in path.parents or not path.is_file() or asset.byte_size > 3 * 1024 * 1024:
+        return None
+    return path.read_bytes()
+
+
+def _visual_review(
+    query_asset: ImageAsset | None,
+    candidate_asset: ImageAsset | None,
+    config: AIRequestConfig | None,
+) -> dict[str, Any] | None:
+    """Return a separate, non-scoring multimodal comparison for one candidate."""
+    if not config or not config.can_review_images or not query_asset or not candidate_asset:
+        return None
+    supported = {"image/jpeg", "image/png", "image/webp"}
+    if query_asset.mime_type not in supported or candidate_asset.mime_type not in supported:
+        return {"status": "skipped", "reason": "图样格式不适合模型视觉复核。"}
+    query_bytes, candidate_bytes = (
+        _safe_asset_bytes(query_asset),
+        _safe_asset_bytes(candidate_asset),
+    )
+    if not query_bytes or not candidate_bytes:
+        return {"status": "skipped", "reason": "图样文件不可用或超过视觉复核大小限制。"}
+    try:
+        payload = generate_json(
+            config,
+            instruction=(
+                "比较两张商标图样。第一张是待测标志，第二张是在先候选。"
+                "只评价整体视觉印象、构图、主要图形元素和可能造成的识别混淆；"
+                "不作法律结论，不调整系统检索分数。"
+                "JSON 结构：{similarity:number(0到1), reason:string(不超过100字)}。"
+            ),
+            images=[
+                (query_bytes, query_asset.mime_type),
+                (candidate_bytes, candidate_asset.mime_type),
+            ],
+        )
+        similarity = float(payload["similarity"])
+        reason = str(payload["reason"]).strip()
+        if not 0 <= similarity <= 1 or not reason or len(reason) > 160:
+            raise ValueError("invalid visual review")
+        return {
+            "status": "completed",
+            "score": round(similarity, 4),
+            "reason": reason,
+            "mode": config.generation_mode,
+            "notice": "模型视觉复核为辅助意见，不参与确定性检索排序或风险评分。",
+        }
+    except (AIProviderError, KeyError, TypeError, ValueError) as exc:
+        logger.warning("user_model_visual_review_unavailable error_type=%s", type(exc).__name__)
+        return {
+            "status": "unavailable",
+            "reason": "模型视觉复核未返回可验证结果，已保留向量比对结果。",
+        }
+
+
+def build_search_operation(
+    search_id: str, ai_config: AIRequestConfig | None = None
+) -> Callable[[Session, AgentRun], None]:
     def operation(session: Session, run: AgentRun) -> None:
         search = session.get(SearchRecord, search_id)
         if search is None:
@@ -279,6 +348,18 @@ def build_search_operation(search_id: str) -> Callable[[Session, AgentRun], None
             raise ValueError("案件不存在")
         update_run(session, run, progress=20, stage="执行多路候选召回")
         ranked = search_trademarks(session, case, search.top_k)
+        query_asset = session.get(ImageAsset, case.image_asset_id) if case.image_asset_id else None
+        reviews: dict[str, dict[str, Any]] = {}
+        if ai_config and ai_config.can_review_images:
+            update_run(session, run, progress=48, stage="模型复核候选图样")
+            for item in ranked[:5]:
+                candidate_asset_id = item["trademark"].image_asset_id
+                candidate_asset = (
+                    session.get(ImageAsset, candidate_asset_id) if candidate_asset_id else None
+                )
+                review = _visual_review(query_asset, candidate_asset, ai_config)
+                if review:
+                    reviews[item["trademark"].id] = review
         session.execute(delete(SearchHit).where(SearchHit.search_id == search.id))
         settings = get_settings()
         for rank, item in enumerate(ranked, start=1):
@@ -301,6 +382,7 @@ def build_search_operation(search_id: str) -> Callable[[Session, AgentRun], None
                             "ocr": settings.ocr_provider,
                             "scoring": settings.retrieval_config_version,
                         },
+                        "visual_review": reviews.get(item["trademark"].id),
                     },
                 )
             )
@@ -327,13 +409,20 @@ def build_search_operation(search_id: str) -> Callable[[Session, AgentRun], None
 def _analysis_facts(session: Session, search: SearchRecord) -> dict[str, Any]:
     case = session.get(CaseRecord, search.case_id)
     bundle = search_dict(session, search)
-    applicable_hits = [item for item in bundle["hits"] if item["jurisdiction"] in {"CN", "DEMO"}]
+    # A course product may be populated primarily with auditable foreign records.
+    # They are still valuable evidence for a *similarity-screening* result even
+    # though they cannot alone establish a Chinese prior-right conclusion.  The
+    # jurisdiction remains in every candidate and the legal narrative continues
+    # to state this boundary; we no longer turn an otherwise useful comparison
+    # into a zero-score "evidence insufficient" screen merely because its source
+    # is foreign.
+    scored_hits = bundle["hits"]
     return json_compatible(
         {
             **(case.facts_snapshot if case else {}),
             "trademark_name": case.trademark_name if case else "待补充",
             "nice_classes": case.nice_classes if case else [],
-            "top_candidate": applicable_hits[0] if applicable_hits else {},
+            "top_candidate": scored_hits[0] if scored_hits else {},
             "candidates": [
                 {
                     "name": item["name"],
@@ -350,7 +439,7 @@ def _analysis_facts(session: Session, search: SearchRecord) -> dict[str, Any]:
                     "source_name": item["source_name"],
                     "is_demo": item["is_demo"],
                 }
-                for item in applicable_hits[:5]
+                for item in scored_hits[:5]
             ],
             "foreign_reference_candidates": [
                 {
@@ -412,6 +501,7 @@ def build_risk_operation(
         )
         analysis = RiskAnalysis(
             search_id=search.id,
+            owner_id=search.owner_id,
             analysis_date=analysis_date,
             risk_score=top_score,
             risk_level=level,
@@ -473,6 +563,7 @@ def build_document_operation(
         errors = validate_document(sections, citations, facts, analysis.analysis_date)
         draft = DocumentDraft(
             analysis_id=analysis.id,
+            owner_id=analysis.owner_id,
             document_type=document_type,
             title=f"“{facts.get('trademark_name', '待补充')}”商标注册风险评估报告",
             sections=sections,
@@ -497,19 +588,36 @@ def build_document_operation(
     return operation
 
 
-def build_consultation_operation(consultation_id: str) -> Callable[[Session, AgentRun], None]:
+def build_consultation_operation(
+    consultation_id: str, ai_config: AIRequestConfig | None = None
+) -> Callable[[Session, AgentRun], None]:
     def operation(session: Session, run: AgentRun) -> None:
         item = session.get(Consultation, consultation_id)
         if item is None:
             raise ValueError("咨询记录不存在")
         facts: dict[str, Any] = {}
+        if item.project_id:
+            from .models import Project
+
+            project = session.get(Project, item.project_id)
+            if project:
+                facts["project"] = {
+                    "name": project.name,
+                    "business_description": project.business_description,
+                }
         if item.case_id:
             case = session.get(CaseRecord, item.case_id)
-            facts = case.facts_snapshot if case else {}
+            if case:
+                facts.update(case.facts_snapshot)
+                facts["mark"] = {
+                    "trademark_name": case.trademark_name,
+                    "business_description": case.business_description,
+                    "nice_classes": case.nice_classes,
+                }
         update_run(session, run, progress=35, stage="执行法律混合检索")
         documents = hybrid_legal_retrieval(session, item.question, item.analysis_date)
         update_run(session, run, progress=65, stage="生成带引用答复")
-        payload, mode = answer_consultation(item.question, facts, documents)
+        payload, mode = answer_consultation(item.question, facts, documents, ai_config)
         citations_by_id = {
             citation["citation_id"]: citation for citation in map(citation_from_document, documents)
         }

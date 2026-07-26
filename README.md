@@ -1,10 +1,25 @@
 # MarkLens
 
-MarkLens 是面向中国大陆商标注册风险初筛的多模态检索与可信法律 RAG 教学系统。MVP 已实现案件事实确认、图样上传与 OCR、文字与图像近似检索、确定性风险评分、带引用法律咨询、风险报告生成、文书编辑校验和数据源同步审计。
+MarkLens 是面向中国大陆商标学习与注册风险初筛的产品化教学系统。它提供面向用户的学习中心、案例实训、私有品牌项目、多模态检索、确定性风险评分和可编辑报告；同时以独立运营后台维护数据源与平台运行。
 
-所有样本商标均明确标注为合成演示数据。系统结果不构成法律意见，也不替代官方数据库查询、律师审查或行政司法机关判断。
+系统同时包含明确标识的课程样本及可追溯的公开境外商标记录。系统结果不构成法律意见，也不替代官方数据库查询、律师审查或行政司法机关判断。
 
-首次安装和开发环境配置请阅读[《MarkLens 环境配置与启动手册》](docs/11-environment-setup.md)；页面操作、API 调用和维护见[《MarkLens 个人使用与维护手册》](docs/09-user-guide.md)。真实数据来源、许可和法域边界见[《真实商标数据说明》](docs/10-real-data.md)。
+先从[文档导航](docs/README.md)开始。首次运行、日常使用与腾讯云部署见[完整使用说明](docs/guides/使用说明.md)；四人协作和实验报告写作见[分工方案](docs/reports/四人分工.md)；真实数据来源、许可和法域边界见[真实商标数据说明](docs/10-real-data.md)。
+
+课程答辩可直接从[答辩资料导航](docs/defense/README.md)进入：其中包含功能到代码索引、8-10 分钟演示脚本与架构追问要点。
+
+## 项目结构
+
+```text
+apps/web/       React 用户端与运营端界面
+apps/api/       FastAPI、业务服务、迁移与测试
+infra/          Nginx 和 systemd 的生产部署模板
+scripts/        初始化、示例资料与部署脚本
+docs/           使用、部署、答辩与报告文档
+output/         可提交的示例注册附件（PDF / DOCX / PNG）
+```
+
+前端只通过 `/api` 调用业务能力；鉴权、数据隔离、文件读取和任务执行均在 `apps/api` 服务端完成。更细的源码导航分别见 [Web](apps/web/src/README.md) 和 [API](apps/api/app/README.md)。
 
 ## 技术栈
 
@@ -14,6 +29,15 @@ MarkLens 是面向中国大陆商标注册风险初筛的多模态检索与可�
 - 生成：DeepSeek API 和官方 `langchain-deepseek`，默认模型 `deepseek-v4-flash`；
 - RAG：LangChain LCEL、BGE 稠密检索、BM25、加权 RRF、日期与法域过滤；
 - 本地模型：FastEmbed `BAAI/bge-small-zh-v1.5`、`Qdrant/resnet50-onnx`、RapidOCR、pHash。
+
+## 产品角色与边界
+
+- `user`：学习知识、完成实训，且只能访问自己的品牌项目、图样、分析和报告；
+- `operator`：进入 `/ops` 维护数据源与运营内容；
+- `admin`：在运营能力基础上管理角色与审计；
+- 用户端不展示数据库、模型、数据同步或任务调度的内部信息；所有访问控制由 API 在服务端执行，而非前端隐藏菜单。
+
+首次执行 `make seed` 会创建演示运营账户。账号由 `.env` 的 `DEMO_ADMIN_EMAIL` 和 `DEMO_ADMIN_PASSWORD` 控制；部署前务必修改密码、`AUTH_SECRET`，并将 `COOKIE_SECURE=true`。
 
 ## 快速启动
 
@@ -68,19 +92,22 @@ MODEL_RUNTIME_ENABLED=false make check
 
 ## 核心接口
 
-耗时操作返回 `202 AgentRun`，前端轮询任务完成后读取对应资源。公共契约见 [contract-v0.2](contracts/v0.2/README.md)。v0.1 作为历史 Mock 保留。
+耗时操作返回 `202 AgentRun`，前端只会看到与自身项目关联的简化进度；运行详情和同步错误留在运营域。旧的无鉴权接口会返回 `410 Gone`，不得作为产品接口使用。
 
 ```text
-POST /api/v1/assets
-POST/GET /api/v1/cases
-POST /api/v1/searches
-POST /api/v1/risk-analyses
-POST /api/v1/documents
-POST /api/v1/consultations
-GET  /api/v1/agent-runs/{id}
-GET  /api/v1/sources
-POST /api/v1/sources/{key}/sync
-GET  /api/v1/ingestion-runs/{id}
+POST /api/v1/auth/register
+POST /api/v1/auth/login
+GET  /api/v1/auth/me
+GET/POST /api/v1/app/projects
+POST /api/v1/app/projects/{id}/marks
+POST /api/v1/app/searches
+POST /api/v1/app/risk-analyses
+POST /api/v1/app/documents
+GET  /api/v1/app/learn/topics
+GET  /api/v1/app/practice/questions
+GET  /api/v1/ops/overview
+GET  /api/v1/ops/sources
+POST /api/v1/ops/sources/{key}/sync
 ```
 
 ## 数据源边界

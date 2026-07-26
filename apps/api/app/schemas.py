@@ -12,6 +12,164 @@ class ContractModel(BaseModel):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
 
+class RegisterCreate(ContractModel):
+    email: str = Field(min_length=5, max_length=255)
+    password: str = Field(min_length=10, max_length=128)
+    display_name: str = Field(min_length=1, max_length=120)
+
+
+class LoginCreate(ContractModel):
+    email: str = Field(min_length=5, max_length=255)
+    password: str = Field(min_length=1, max_length=128)
+
+
+class CurrentUserResponse(ContractModel):
+    user_id: str
+    email: str
+    display_name: str
+    roles: list[Literal["user", "operator", "admin"]]
+
+
+class AuthResponse(ContractModel):
+    access_token: str
+    token_type: Literal["bearer"] = "bearer"
+    user: CurrentUserResponse
+
+
+class ProjectCreate(ContractModel):
+    name: str = Field(min_length=1, max_length=160)
+    business_description: str = Field(default="", max_length=4000)
+
+
+class ProjectResponse(ContractModel):
+    project_id: str
+    name: str
+    business_description: str
+    status: str
+    owner_id: str
+    case_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+
+
+class AppDashboardResponse(ContractModel):
+    projects: list[ProjectResponse]
+    learning_progress: dict[str, int]
+
+
+class PracticeQuestionResponse(ContractModel):
+    question_id: str
+    title: str
+    prompt: str
+    options: list[dict[str, str]]
+    difficulty: str
+
+
+class PracticeAttemptCreate(ContractModel):
+    selected_option: str = Field(min_length=1, max_length=80)
+
+
+class PracticeAttemptResponse(ContractModel):
+    attempt_id: str
+    is_correct: bool
+    explanation: str
+
+
+class LearningTopicResponse(ContractModel):
+    topic_id: str
+    slug: str
+    title: str
+    summary: str
+    article_count: int
+
+
+class LearningArticleResponse(ContractModel):
+    article_id: str
+    title: str
+    body: str
+    citations: list[dict[str, Any]]
+
+
+class LearningVideoResponse(ContractModel):
+    video_id: str
+    topic_slug: str
+    topic_title: str
+    title: str
+    provider: str
+    external_url: str
+    duration_label: str
+    learning_objective: str
+    is_published: bool
+
+
+class OpsLearningVideoCreate(ContractModel):
+    topic_slug: str = Field(min_length=2, max_length=120)
+    title: str = Field(min_length=2, max_length=200)
+    provider: str = Field(default="bilibili", min_length=2, max_length=80)
+    external_url: str = Field(min_length=20, max_length=700)
+    duration_label: str = Field(default="外部视频", min_length=2, max_length=80)
+    learning_objective: str = Field(min_length=2, max_length=500)
+    is_published: bool = False
+
+    @field_validator("external_url")
+    @classmethod
+    def validate_video_url(cls, value: str) -> str:
+        from urllib.parse import urlparse
+
+        parsed = urlparse(value.strip())
+        if parsed.scheme != "https" or not parsed.hostname:
+            raise ValueError("视频链接必须是 HTTPS 地址。")
+        if not (parsed.hostname == "bilibili.com" or parsed.hostname.endswith(".bilibili.com")):
+            raise ValueError("当前仅支持哔哩哔哩视频链接。")
+        return value.strip()
+
+
+class OpsOverviewResponse(ContractModel):
+    users: int
+    projects: int
+    runs: dict[str, int]
+    published_topics: int
+
+
+class AdminUserResponse(ContractModel):
+    user_id: str
+    email: str
+    display_name: str
+    status: str
+    roles: list[Literal["user", "operator", "admin"]]
+    created_at: datetime
+
+
+class AdminUserRolesUpdate(ContractModel):
+    roles: list[Literal["user", "operator", "admin"]] = Field(min_length=1, max_length=3)
+
+
+class OpsLearningTopicUpsert(ContractModel):
+    slug: str = Field(min_length=2, max_length=120, pattern=r"^[a-z0-9-]+$")
+    title: str = Field(min_length=2, max_length=160)
+    summary: str = Field(min_length=2, max_length=500)
+    body: str = Field(min_length=2, max_length=12000)
+    is_published: bool = False
+
+
+class OpsPracticeQuestionCreate(ContractModel):
+    title: str = Field(min_length=2, max_length=200)
+    prompt: str = Field(min_length=2, max_length=4000)
+    options: list[dict[str, str]] = Field(min_length=2, max_length=6)
+    correct_option: str = Field(min_length=1, max_length=80)
+    explanation: str = Field(min_length=2, max_length=8000)
+    difficulty: Literal["basic", "intermediate", "advanced"] = "basic"
+    is_published: bool = False
+
+
+class OpsPracticeQuestionResponse(PracticeQuestionResponse):
+    """运营侧题目视图；正确答案只会在受角色保护的后台返回。"""
+
+    correct_option: str
+    explanation: str
+    is_published: bool
+
+
 class ErrorBody(ContractModel):
     code: str
     message: str
@@ -49,6 +207,16 @@ class AssetResult(ContractModel):
     created_at: datetime
 
 
+class ProjectAttachmentResponse(ContractModel):
+    attachment_id: str
+    filename: str
+    mime_type: str
+    normalized_text: str
+    structure: dict[str, Any]
+    extracted_image_asset_id: str | None = None
+    created_at: datetime
+
+
 class CaseCreate(ContractModel):
     trademark_name: str = Field(min_length=1, max_length=255)
     business_description: str = Field(min_length=2, max_length=4000)
@@ -82,6 +250,7 @@ class SearchCreate(ContractModel):
 
 class ScoreBreakdown(ContractModel):
     visual: float | None = None
+    visual_basis: str | None = None
     text: float | None = None
     phonetic: float | None = None
     semantic: float | None = None
@@ -110,6 +279,7 @@ class TrademarkEvidence(ContractModel):
     scores: ScoreBreakdown
     reasons: list[str]
     ocr_evidence: dict[str, Any] | None = None
+    visual_review: dict[str, Any] | None = None
     model_versions: dict[str, str]
 
 
@@ -208,6 +378,15 @@ class ConsultationAnswer(ContractModel):
     disclaimer: str
     generation_mode: str
     created_at: datetime
+
+
+class ProjectAdvisorQuestionCreate(ConsultationCreate):
+    """A legal/brand question grounded in one private project."""
+
+
+class ProjectAdvisorMessage(ConsultationAnswer):
+    project_id: str
+    case_id: str | None = None
 
 
 class AgentRunResponse(ContractModel):

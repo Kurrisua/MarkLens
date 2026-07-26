@@ -1,0 +1,19 @@
+[Unit]
+Description=MarkLens FastAPI service
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=marklens
+Group=marklens
+WorkingDirectory=/opt/marklens
+EnvironmentFile=/opt/marklens/.env
+Environment=PYTHONPATH=/opt/marklens/apps/api
+ExecStart=/opt/marklens/apps/api/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8001 --workers 2
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

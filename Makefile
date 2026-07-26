@@ -1,4 +1,4 @@
-.PHONY: setup setup-api setup-web models-download download-real-sample import-real-sample db-up db-down db-status db-up-docker db-down-docker db-migrate seed validate dev-api dev-web lint-api test-api test-web build-web check
+.PHONY: setup setup-api setup-web models-download download-real-sample import-real-sample download-real-batch import-real-batch db-up db-down db-status db-up-docker db-down-docker db-migrate seed validate dev-api dev-web lint-api test-api test-web build-web check
 
 PYTHON ?= python3.12
 API_VENV := apps/api/.venv
@@ -24,6 +24,12 @@ download-real-sample:
 
 import-real-sample: download-real-sample
 	PYTHONPATH=apps/api $(API_PYTHON) -m app.import_ipo_cz
+
+download-real-batch:
+	PYTHONPATH=apps/api $(API_PYTHON) -m app.download_ipo_cz_batch --days 45
+
+import-real-batch: download-real-batch
+	PYTHONPATH=apps/api $(API_PYTHON) -m app.import_ipo_cz_batch
 
 db-up:
 	./scripts/mysql-local.sh start

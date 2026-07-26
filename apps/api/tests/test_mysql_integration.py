@@ -20,7 +20,9 @@ def test_migration_seed_is_idempotent_and_search_completes() -> None:
         seed_all(session)
         seed_all(session)
         assert (
-            session.scalar(select(func.count(Trademark.id)).where(Trademark.is_demo.is_(True)))
+            session.scalar(
+                select(func.count(Trademark.id)).where(Trademark.source_record_id.like("DEMO-%"))
+            )
             == 60
         )
 

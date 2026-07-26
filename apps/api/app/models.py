@@ -21,6 +21,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
+from sqlalchemy.dialects.mysql import LONGBLOB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -35,6 +36,127 @@ class TimestampMixin:
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
     )
+
+
+class User(Base, TimestampMixin):
+    __tablename__ = "users"
+    __table_args__ = (Index("ix_users_email", "email"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(500), nullable=False)
+    display_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="active", nullable=False)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class UserRole(Base, TimestampMixin):
+    __tablename__ = "user_roles"
+    __table_args__ = (UniqueConstraint("user_id", "role", name="uq_user_role"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+    role: Mapped[str] = mapped_column(String(32), default="user", nullable=False)
+
+
+class AuthSession(Base, TimestampMixin):
+    __tablename__ = "auth_sessions"
+    __table_args__ = (Index("ix_auth_sessions_user", "user_id"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime)
+    user_agent: Mapped[str | None] = mapped_column(String(500))
+
+
+class Project(Base, TimestampMixin):
+    __tablename__ = "projects"
+    __table_args__ = (Index("ix_projects_owner_created", "owner_id", "created_at"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    business_description: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="active", nullable=False)
+
+
+class ProjectMembership(Base, TimestampMixin):
+    __tablename__ = "project_memberships"
+    __table_args__ = (UniqueConstraint("project_id", "user_id", name="uq_project_member"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+    permission: Mapped[str] = mapped_column(String(32), default="viewer", nullable=False)
+
+
+class LearningTopic(Base, TimestampMixin):
+    __tablename__ = "learning_topics"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    slug: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    summary: Mapped[str] = mapped_column(String(500), nullable=False)
+    order_index: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+
+class LearningArticle(Base, TimestampMixin):
+    __tablename__ = "learning_articles"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    topic_id: Mapped[str] = mapped_column(ForeignKey("learning_topics.id"), nullable=False)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    citations: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list, nullable=False)
+    order_index: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+
+class LearningVideo(Base, TimestampMixin):
+    """A curated external lesson; MarkLens links out instead of rehosting media."""
+
+    __tablename__ = "learning_videos"
+    __table_args__ = (Index("ix_learning_videos_topic_order", "topic_id", "order_index"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    topic_id: Mapped[str] = mapped_column(ForeignKey("learning_topics.id"), nullable=False)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    provider: Mapped[str] = mapped_column(String(80), default="bilibili", nullable=False)
+    external_url: Mapped[str] = mapped_column(String(700), nullable=False)
+    duration_label: Mapped[str] = mapped_column(String(80), default="外部视频", nullable=False)
+    learning_objective: Mapped[str] = mapped_column(String(500), nullable=False)
+    order_index: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+
+class PracticeQuestion(Base, TimestampMixin):
+    __tablename__ = "practice_questions"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    prompt: Mapped[str] = mapped_column(Text, nullable=False)
+    options: Mapped[list[dict[str, str]]] = mapped_column(JSON, default=list, nullable=False)
+    correct_option: Mapped[str] = mapped_column(String(80), nullable=False)
+    explanation: Mapped[str] = mapped_column(Text, nullable=False)
+    difficulty: Mapped[str] = mapped_column(String(32), default="basic", nullable=False)
+    is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+
+class LearningAttempt(Base, TimestampMixin):
+    __tablename__ = "learning_attempts"
+    __table_args__ = (Index("ix_learning_attempts_user", "user_id", "created_at"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+    question_id: Mapped[str] = mapped_column(ForeignKey("practice_questions.id"), nullable=False)
+    selected_option: Mapped[str] = mapped_column(String(80), nullable=False)
+    is_correct: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+
+class AuditEvent(Base, TimestampMixin):
+    __tablename__ = "audit_events"
+    __table_args__ = (Index("ix_audit_events_actor_created", "actor_id", "created_at"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    actor_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    action: Mapped[str] = mapped_column(String(120), nullable=False)
+    resource_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    resource_id: Mapped[str | None] = mapped_column(String(36))
+    request_id: Mapped[str | None] = mapped_column(String(80))
+    result: Mapped[str] = mapped_column(String(32), default="success", nullable=False)
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
 
 
 class SourceDefinition(Base, TimestampMixin):
@@ -116,6 +238,8 @@ class GoodsServiceItem(Base):
 class ImageAsset(Base, TimestampMixin):
     __tablename__ = "image_assets"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), index=True)
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), index=True)
     storage_key: Mapped[str] = mapped_column(String(500), unique=True, nullable=False)
     original_filename: Mapped[str | None] = mapped_column(String(255))
     mime_type: Mapped[str] = mapped_column(String(80), nullable=False)
@@ -186,6 +310,8 @@ class LegalChunk(Base, TimestampMixin):
 class CaseRecord(Base, TimestampMixin):
     __tablename__ = "cases"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), index=True)
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), index=True)
     trademark_name: Mapped[str] = mapped_column(String(255), nullable=False)
     business_description: Mapped[str] = mapped_column(Text, nullable=False)
     nice_classes: Mapped[list[int]] = mapped_column(JSON, default=list, nullable=False)
@@ -194,9 +320,28 @@ class CaseRecord(Base, TimestampMixin):
     facts_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
 
 
+class ProjectAttachment(Base, TimestampMixin):
+    __tablename__ = "project_attachments"
+    __table_args__ = (Index("ix_project_attachments_project_created", "project_id", "created_at"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    mime_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    # MySQL's un-sized LargeBinary maps to BLOB (64 KiB), while the product
+    # intentionally accepts up to 5 MiB registration materials.
+    raw_content: Mapped[bytes] = mapped_column(
+        LargeBinary().with_variant(LONGBLOB(), "mysql"), nullable=False
+    )
+    normalized_text: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    structure: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    extracted_image_asset_id: Mapped[str | None] = mapped_column(ForeignKey("image_assets.id"))
+
+
 class SearchRecord(Base, TimestampMixin):
     __tablename__ = "searches"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), index=True)
     case_id: Mapped[str] = mapped_column(ForeignKey("cases.id"), nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="queued", nullable=False)
     query_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
@@ -220,6 +365,7 @@ class SearchHit(Base, TimestampMixin):
 class RiskAnalysis(Base, TimestampMixin):
     __tablename__ = "risk_analyses"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), index=True)
     search_id: Mapped[str] = mapped_column(ForeignKey("searches.id"), nullable=False)
     analysis_date: Mapped[date] = mapped_column(Date, nullable=False)
     risk_score: Mapped[float] = mapped_column(Float, nullable=False)
@@ -238,6 +384,7 @@ class RiskAnalysis(Base, TimestampMixin):
 class DocumentDraft(Base, TimestampMixin):
     __tablename__ = "document_drafts"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), index=True)
     analysis_id: Mapped[str] = mapped_column(ForeignKey("risk_analyses.id"), nullable=False)
     document_type: Mapped[str] = mapped_column(String(100), nullable=False)
     title: Mapped[str] = mapped_column(String(500), nullable=False)
@@ -253,7 +400,10 @@ class DocumentDraft(Base, TimestampMixin):
 
 class Consultation(Base, TimestampMixin):
     __tablename__ = "consultations"
+    __table_args__ = (Index("ix_consultations_project_created", "project_id", "created_at"),)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), index=True)
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), index=True)
     case_id: Mapped[str | None] = mapped_column(ForeignKey("cases.id"))
     question: Mapped[str] = mapped_column(Text, nullable=False)
     analysis_date: Mapped[date] = mapped_column(Date, nullable=False)
@@ -267,6 +417,8 @@ class Consultation(Base, TimestampMixin):
 class AgentRun(Base, TimestampMixin):
     __tablename__ = "agent_runs"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), index=True)
+    visibility: Mapped[str] = mapped_column(String(32), default="user", nullable=False)
     agent_type: Mapped[str] = mapped_column(String(80), nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="queued", nullable=False)
     progress: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

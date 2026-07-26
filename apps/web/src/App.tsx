@@ -1,425 +1,256 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { NavLink, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { Component, useEffect, useState, type ErrorInfo, type ReactNode } from "react";
+import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { motion, useReducedMotion } from "motion/react";
 import {
-  ArrowRight, BookOpenText, Briefcase, CaretLeft, ChartPolar, Check, CircleNotch,
-  CloudArrowUp, Database, Eye, FileMagnifyingGlass, FileText, Gauge, House, Info,
-  List, MagnifyingGlass, Moon, PencilSimple, Plus, Printer, Scales, ShieldCheck, Sun,
-  UploadSimple, Warning, X
+  ArrowRight, BookOpenText, CheckCircle, DownloadSimple, FileText, Fingerprint, Gauge, GraduationCap,
+  GridFour, House, Key, List, MagnifyingGlass, Plus, ShieldCheck, SignOut, Sparkle,
+  SpinnerGap, Stack, UserCircle, UsersThree, Warning
 } from "@phosphor-icons/react";
-import {
-  Badge, Button, Callout, Card, Checkbox, Flex, Heading, Progress, Separator,
-  Text, TextArea, TextField, Theme
-} from "@radix-ui/themes";
-import {
-  PolarAngleAxis, PolarGrid, Radar, RadarChart, ResponsiveContainer, Tooltip as ChartTooltip
-} from "recharts";
-import { z } from "zod";
+import { api, ApiError, assetUrl, clearAccessToken, protectedImageUrl, setAccessToken, trademarkImageUrl } from "./api";
+import { aiSession, type AISessionConfig } from "./ai-session";
+import type { AgentRun, CaseContext, CurrentUser, DocumentDraft, LearningTopic, RiskAssessment } from "./contracts";
 
-import { ApiError, api, assetUrl } from "./api";
-import type {
-  AgentRun, Citation, DocumentSection, RiskLevel, SourceDefinition, TrademarkEvidence
-} from "./contracts";
+type AuthState = { user: CurrentUser | null; ready: boolean };
 
-type Appearance = "light" | "dark";
-
-const navItems = [
-  { to: "/", label: "工作台", icon: House, end: true },
-  { to: "/new", label: "新建分析", icon: Plus },
-  { to: "/consult", label: "法律咨询", icon: BookOpenText },
-  { to: "/sources", label: "数据源", icon: Database }
-];
-
-function initialAppearance(): Appearance {
-  const saved = localStorage.getItem("marklens-theme");
-  if (saved === "light" || saved === "dark") return saved;
-  return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+function Loading({ label = "正在准备页面" }: { label?: string }) {
+  return <div className="product-loading"><SpinnerGap size={28} className="spin" /><span>{label}</span></div>;
 }
 
-function AppShell({ children, appearance, setAppearance }: {
-  children: ReactNode; appearance: Appearance; setAppearance: (value: Appearance) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="app-shell">
-      <aside className={open ? "sidebar sidebar-open" : "sidebar"}>
-        <div className="brand-row">
-          <NavLink to="/" className="brand" onClick={() => setOpen(false)}>
-            <span className="brand-symbol"><FileMagnifyingGlass size={23} weight="duotone" /></span>
-            <span><strong>MarkLens</strong><small>可信商标工作台</small></span>
-          </NavLink>
-          <button className="sidebar-close" onClick={() => setOpen(false)} aria-label="关闭导航"><X size={20} /></button>
-        </div>
-        <nav className="primary-nav" aria-label="主导航">
-          {navItems.map(({ to, label, icon: Icon, end }) => (
-            <NavLink key={to} to={to} end={end} onClick={() => setOpen(false)} className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
-              <Icon size={19} weight="duotone" /><span>{label}</span>
-            </NavLink>
-          ))}
-        </nav>
-        <div className="sidebar-boundary">
-          <ShieldCheck size={19} weight="duotone" />
-          <div><strong>教学风险初筛</strong><small>不替代官方检索或律师意见</small></div>
-        </div>
-        <div className="theme-switcher" aria-label="主题切换">
-          <button className={appearance === "light" ? "selected" : ""} onClick={() => setAppearance("light")}><Sun size={16} />浅色</button>
-          <button className={appearance === "dark" ? "selected" : ""} onClick={() => setAppearance("dark")}><Moon size={16} />深色</button>
-        </div>
-      </aside>
-      <div className="content-column">
-        <header className="mobile-header">
-          <button onClick={() => setOpen(true)} aria-label="打开导航"><List size={22} /></button>
-          <strong>MarkLens</strong>
-          <button onClick={() => setAppearance(appearance === "light" ? "dark" : "light")} aria-label="切换主题">
-            {appearance === "light" ? <Moon size={20} /> : <Sun size={20} />}
-          </button>
-        </header>
-        <main className="main-content">{children}</main>
-      </div>
-      {open && <button className="nav-scrim" onClick={() => setOpen(false)} aria-label="关闭导航遮罩" />}
+function ErrorNotice({ error }: { error: unknown }) {
+  const message = error instanceof ApiError ? error.message : "暂时无法获取内容，请稍后重试。";
+  return <div className="product-error"><Warning size={20} /><span>{message}</span></div>;
+}
+
+class PageBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch(_error: Error, _info: ErrorInfo) { /* Keep route failures visible instead of rendering a blank page. */ }
+  render() { return this.state.failed ? <section className="app-space"><Empty icon={<Warning size={28} />} title="这个页面没有成功加载" body="项目数据没有丢失。请返回项目重新打开，或刷新页面后重试。" action={<Link className="product-button" to="/projects">返回我的项目</Link>} /></section> : this.props.children; }
+}
+
+function RouteBoundary({ children }: { children: ReactNode }) {
+  const location = useLocation();
+  // A new route gets a fresh boundary, so the recovery link can actually render the destination.
+  return <PageBoundary key={location.pathname}>{children}</PageBoundary>;
+}
+
+function ProductHeader({ user, onLogout }: { user: CurrentUser | null; onLogout: () => void }) {
+  return <header className="product-header">
+    <Link className="product-brand" to="/"><span className="brand-mark"><Fingerprint size={25} /></span><span><strong>MarkLens</strong><small>品牌保护助手</small></span></Link>
+    <nav className="product-nav" aria-label="主导航">
+      <NavLink to="/learn">学习中心</NavLink>
+      <NavLink to="/practice">案例实训</NavLink>
+      {user && <NavLink to="/projects">我的项目</NavLink>}
+      {user?.roles.some(role => role === "operator" || role === "admin") && <NavLink to="/ops">运营后台</NavLink>}
+    </nav>
+    <div className="product-account">
+      {user ? <><Link to="/ai-settings" className="quiet-button" aria-label="AI 调用设置"><Key size={17} />AI 设置</Link><Link to="/projects" className="account-name"><UserCircle size={20} />{user.display_name}</Link><button className="quiet-button" onClick={onLogout}><SignOut size={17} />退出</button></> : <><Link className="quiet-button" to="/login">登录</Link><Link className="product-button small" to="/register">免费开始</Link></>}
     </div>
-  );
+  </header>;
 }
 
-function PageHeader({ title, description, action, back }: { title: string; description: string; action?: ReactNode; back?: string }) {
+function ProductShell({ user, onLogout, children }: { user: CurrentUser | null; onLogout: () => void; children: ReactNode }) {
+  return <div className="product-page"><ProductHeader user={user} onLogout={onLogout} /><main>{children}</main><footer className="product-footer"><span>MarkLens · 商标学习与风险初筛</span><span>结果仅供学习和初步决策参考，不构成法律意见。</span></footer></div>;
+}
+
+function Home() {
+  return <>
+    <section className="product-hero">
+      <div className="hero-copy"><span className="eyebrow">从想法到品牌保护</span><h1>让每一个品牌名字，<em>先被认真看见。</em></h1><p>学习商标知识、整理品牌方案、完成近似初筛，并把判断依据留在同一个项目里。</p><div className="hero-actions"><Link className="product-button" to="/register">创建品牌项目 <ArrowRight size={18} /></Link><Link className="text-link" to="/learn">先从商标知识学起</Link></div><div className="hero-note"><ShieldCheck size={17} />基于演示数据提供教学初筛；关键结论仍需官方查询和专业复核。</div></div>
+      <div className="hero-lens" aria-label="商标检索示意"><div className="lens-grid"><span className="lens-tag">文字</span><span className="lens-tag">读音</span><span className="lens-tag">图形</span><span className="lens-tag">类别</span></div><div className="lens-core"><Fingerprint size={76} /><strong>品牌指纹</strong><small>从多个维度理解相似风险</small></div><div className="lens-orbit orbit-a" /><div className="lens-orbit orbit-b" /></div>
+    </section>
+    <section className="journey-section"><div className="section-intro"><span className="eyebrow">一条清晰的路径</span><h2>不是把结果丢给你，而是陪你完成判断。</h2></div><div className="journey-grid">
+      <Journey icon={<BookOpenText />} step="理解" title="建立判断框架" body="用案例和短内容理解显著性、近似性与注册流程。" />
+      <Journey icon={<Stack />} step="整理" title="组织品牌方案" body="一个项目保存多个候选名称、业务描述和图样。" />
+      <Journey icon={<MagnifyingGlass />} step="初筛" title="查看可复核证据" body="从文字、读音、图形和类别关系理解候选结果。" />
+      <Journey icon={<FileText />} step="沉淀" title="保留报告与下一步" body="将分析与引用保存在项目里，便于继续修改和人工复核。" />
+    </div></section>
+  </>;
+}
+function Journey({ icon, step, title, body }: { icon: ReactNode; step: string; title: string; body: string }) { return <article className="journey-card"><span className="journey-icon">{icon}</span><span className="journey-step">{step}</span><h3>{title}</h3><p>{body}</p></article>; }
+
+function AuthPage({ mode, onAuthenticated }: { mode: "login" | "register"; onAuthenticated: (value: CurrentUser, token: string) => void }) {
+  const navigate = useNavigate(); const [email, setEmail] = useState(""); const [password, setPassword] = useState(""); const [name, setName] = useState(""); const [error, setError] = useState("");
+  const submit = async (event: React.FormEvent) => { event.preventDefault(); setError(""); try { const result = mode === "login" ? await api.login({ email, password }) : await api.register({ email, password, display_name: name }); setAccessToken(result.access_token); onAuthenticated(result.user, result.access_token); navigate("/projects"); } catch (reason) { setError(reason instanceof Error ? reason.message : "暂时无法完成操作。"); } };
+  return <section className="auth-page"><div className="auth-aside"><Link className="product-brand" to="/"><span className="brand-mark"><Fingerprint size={25} /></span><span><strong>MarkLens</strong><small>品牌保护助手</small></span></Link><div><span className="eyebrow">开始一段更有依据的品牌旅程</span><h1>把每个想法，留在自己的项目里。</h1><p>项目、图样、分析和报告都只对你及被授权的协作者可见。</p></div></div><form className="auth-card" onSubmit={submit}><span className="eyebrow">{mode === "login" ? "欢迎回来" : "创建账户"}</span><h2>{mode === "login" ? "登录后继续你的项目" : "开始创建品牌项目"}</h2>{mode === "register" && <label>显示名称<input value={name} onChange={e => setName(e.target.value)} placeholder="例如：张同学" required /></label>}<label>邮箱<input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" required /></label><label>密码<input type="password" value={password} onChange={e => setPassword(e.target.value)} minLength={10} placeholder="至少 10 位" required /></label>{error && <div className="product-error"><Warning size={18} />{error}</div>}<button className="product-button" type="submit">{mode === "login" ? "登录" : "创建账户"}<ArrowRight size={18} /></button><p className="auth-switch">{mode === "login" ? <>还没有账户？<Link to="/register">创建账户</Link></> : <>已有账户？<Link to="/login">直接登录</Link></>}</p></form></section>;
+}
+
+function RequireUser({ user, children }: { user: CurrentUser | null; children: ReactNode }) { return user ? <>{children}</> : <Navigate to="/login" replace />; }
+
+function Projects() {
+  const navigate = useNavigate(); const dashboard = useQuery({ queryKey: ["dashboard"], queryFn: api.dashboard });
+  if (dashboard.isLoading) return <Loading label="正在加载你的品牌项目" />; if (dashboard.error) return <ErrorNotice error={dashboard.error} />;
+  const data = dashboard.data!;
+  return <section className="app-space"><div className="page-title"><div><span className="eyebrow">我的工作空间</span><h1>品牌项目</h1><p>每个项目保存方案、分析与报告，方便你持续推进。</p></div><Link className="product-button" to="/projects/new"><Plus size={18} />新建项目</Link></div><div className="progress-strip"><GraduationCap size={23} /><div><strong>学习进度</strong><span>已完成 {data.learning_progress.attempts} 次练习，其中 {data.learning_progress.correct} 次判断正确。</span></div><Link to="/practice">继续练习 <ArrowRight size={15} /></Link></div>{data.projects.length ? <div className="project-grid">{data.projects.map(item => <button className="project-card" key={item.project_id} onClick={() => navigate(`/projects/${item.project_id}`)}><span className="project-monogram">{item.name.slice(0, 1)}</span><div><span className="project-meta">{item.case_count} 个商标方案</span><h2>{item.name}</h2><p>{item.business_description || "尚未补充业务描述"}</p></div><ArrowRight size={19} /></button>)}</div> : <Empty icon={<Sparkle size={28} />} title="创建你的第一个品牌项目" body="从一个业务想法开始，之后可以保存多个候选商标方案。" action={<Link className="product-button" to="/projects/new">新建品牌项目</Link>} />}</section>;
+}
+
+function NewProject() {
+  const navigate = useNavigate(); const queryClient = useQueryClient(); const [name, setName] = useState(""); const [description, setDescription] = useState(""); const mutation = useMutation({ mutationFn: api.createProject, onSuccess: item => { queryClient.invalidateQueries({ queryKey: ["dashboard"] }); navigate(`/projects/${item.project_id}`); } });
+  return <section className="form-page"><Link className="back-link" to="/projects">← 返回项目</Link><form className="editor-card" onSubmit={e => { e.preventDefault(); mutation.mutate({ name, business_description: description }); }}><span className="eyebrow">新建品牌项目</span><h1>先保存你的业务背景</h1><p>这不是商标申请。项目只是帮你把后续方案与分析放在一起。</p><label>项目名称<input value={name} onChange={e => setName(e.target.value)} placeholder="例如：智能穿戴品牌筹备" required /></label><label>业务描述<textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="例如：面向儿童的智能手表与配套软件服务" rows={5} /></label>{mutation.error && <ErrorNotice error={mutation.error} />}<button className="product-button" type="submit" disabled={mutation.isPending}>{mutation.isPending ? "正在创建…" : "创建项目"}<ArrowRight size={18} /></button></form></section>;
+}
+
+function AISettings() {
+  const [draft, setDraft] = useState<AISessionConfig>(() => aiSession.get()); const [saved, setSaved] = useState(false);
+  const update = <K extends keyof AISessionConfig>(key: K, value: AISessionConfig[K]) => { setDraft(current => ({ ...current, [key]: value })); setSaved(false); };
+  const save = (event: React.FormEvent) => { event.preventDefault(); aiSession.set(draft); setSaved(true); };
+  return <section className="form-page ai-settings-page"><Link className="back-link" to="/projects">← 返回我的项目</Link><form className="editor-card" onSubmit={save}><span className="eyebrow">本次会话的 AI 调用设置</span><h1>使用你自己的模型，但不保存密钥。</h1><p>密钥只保存在当前浏览器内存，并随本次请求发往你选择的模型服务；刷新页面、退出或关闭标签页后都会清除。</p><label>接口格式<select value={draft.provider} onChange={event => update("provider", event.target.value as AISessionConfig["provider"])}><option value="server_default">服务端默认模型（无需填写 Key）</option><option value="openai_compatible">OpenAI 兼容 Chat Completions（填写自己的 Key）</option><option value="anthropic">Anthropic Messages（填写自己的 Key）</option></select></label>{draft.provider === "server_default" && <button className="ai-key-entry" type="button" onClick={() => update("provider", "openai_compatible")}><Key size={19} /><span><strong>我要使用自己的 API Key</strong><small>点击后填写模型名、接口地址与 Key；也可改选 Anthropic 格式。</small></span><ArrowRight size={17} /></button>}{draft.provider !== "server_default" && <><label>模型名称<input value={draft.model} onChange={event => update("model", event.target.value)} placeholder={draft.provider === "anthropic" ? "例如：claude-sonnet-4-5" : "例如：gpt-4.1-mini 或兼容模型名"} required /></label>{draft.provider === "openai_compatible" && <label>兼容接口地址<input type="url" value={draft.baseUrl} onChange={event => update("baseUrl", event.target.value)} placeholder="https://api.openai.com/v1" required /><small>仅允许 HTTPS 地址；默认值适用于 OpenAI 官方兼容接口。</small></label>}<label>API Key<input type="password" autoComplete="off" value={draft.apiKey} onChange={event => update("apiKey", event.target.value)} placeholder="仅用于本次会话，不会写入项目或数据库" required /></label></>}<fieldset className="ai-image-choice"><legend>图样相似度策略</legend><label><input type="radio" checked={draft.imageStrategy === "vector"} onChange={() => update("imageStrategy", "vector")} /><span>使用本地向量与感知哈希比对（默认）</span></label><p>适合纯文本模型，也始终保留为可复核的检索依据。</p><label><input type="radio" checked={draft.imageStrategy === "model"} disabled={draft.provider === "server_default"} onChange={() => update("imageStrategy", "model")} /><span>让已支持图片输入的模型额外复核前 5 个候选图样</span></label><p>模型复核是单独的辅助意见，不会修改初筛排序和风险评分。</p>{draft.imageStrategy === "model" && draft.provider !== "server_default" && <label className="publish-choice"><input type="checkbox" checked={draft.visionEnabled} onChange={event => update("visionEnabled", event.target.checked)} />我确认所选模型支持图片输入</label>}</fieldset>{saved && <div className="product-success">设置已应用到本次会话。现在可在项目顾问中提问，或重新开始初筛。</div>}<button className="product-button" type="submit">应用本次会话设置 <ArrowRight size={18} /></button></form></section>;
+}
+
+function ProjectDetail() {
+  const { projectId = "" } = useParams(); const project = useQuery({ queryKey: ["project", projectId], queryFn: () => api.getProject(projectId) }); const marks = useQuery({ queryKey: ["marks", projectId], queryFn: () => api.projectMarks(projectId) });
+  if (project.isLoading || marks.isLoading) return <Loading label="正在打开品牌项目" />; if (project.error || marks.error) return <ErrorNotice error={project.error ?? marks.error} />;
+  return <section className="app-space"><Link className="back-link" to="/projects">← 返回项目</Link><div className="project-header"><div><span className="eyebrow">品牌项目</span><h1>{project.data!.name}</h1><p>{project.data!.business_description || "尚未补充业务描述"}</p></div><div className="project-header-actions"><Link className="product-button" to={`/projects/${projectId}/marks/new`}><Plus size={18} />添加商标方案</Link></div></div><section className="advisor-callout" aria-label="品牌顾问入口"><span className="advisor-callout-icon"><Sparkle size={25} /></span><div><span className="eyebrow">项目决策支持</span><h2>不确定下一步怎么做？先咨询品牌顾问。</h2><p>围绕当前项目、商标方案与已保存的初筛证据提出问题，获得带法律资料引用的判断方向。</p><div className="advisor-callout-points"><span>项目上下文</span><span>商标方案关联</span><span>法律资料引用</span></div></div><Link className="product-button" to={`/projects/${projectId}/advisor`}>咨询品牌顾问 <ArrowRight size={18} /></Link></section><section className="project-section"><div className="section-heading"><div><h2>商标方案</h2><p>分别分析不同名称或图样，保留每次判断的依据。</p></div></div>{marks.data!.length ? <div className="mark-list">{marks.data!.map(mark => <MarkRow projectId={projectId} mark={mark} key={mark.case_id} />)}</div> : <Empty icon={<Fingerprint size={28} />} title="还没有商标方案" body="添加一个名称、业务描述和类别后，即可开始近似初筛。" action={<Link className="product-button" to={`/projects/${projectId}/marks/new`}>添加第一个方案</Link>} />}</section></section>;
+}
+
+function ProjectAdvisor() {
+  const { projectId = "" } = useParams(); const [question, setQuestion] = useState(""); const [caseId, setCaseId] = useState(""); const [activeRun, setActiveRun] = useState(""); const [runError, setRunError] = useState("");
+  const project = useQuery({ queryKey: ["project", projectId], queryFn: () => api.getProject(projectId) }); const marks = useQuery({ queryKey: ["marks", projectId], queryFn: () => api.projectMarks(projectId) }); const messages = useQuery({ queryKey: ["advisor", projectId], queryFn: () => api.advisorMessages(projectId) });
+  const run = useQuery({ queryKey: ["advisor-run", activeRun], queryFn: () => api.getRun(activeRun), enabled: Boolean(activeRun), refetchInterval: query => query.state.data?.status === "completed" || query.state.data?.status === "failed" ? false : 900 });
+  const ask = useMutation({ mutationFn: () => api.askAdvisor(projectId, { question, case_id: caseId || null }), onSuccess: item => { setQuestion(""); setRunError(""); setActiveRun(item.run_id); } });
+  useEffect(() => { if (!activeRun || !run.data || !["completed", "failed"].includes(run.data.status)) return; if (run.data.status === "failed") setRunError(run.data.error?.message ?? "顾问暂时无法完成答复。"); void messages.refetch(); setActiveRun(""); }, [activeRun, messages, run.data]);
+  if (project.isLoading || marks.isLoading || messages.isLoading) return <Loading label="正在打开品牌顾问" />; if (project.error || marks.error || messages.error) return <ErrorNotice error={project.error ?? marks.error ?? messages.error} />;
+  const suggested = ["这个名称在哪些方面最容易与现有商标混淆？", "我应该优先调整文字、图形还是指定类别？", "在提交申请前，还缺哪些可核实的证据？"];
+  return <section className="advisor-page"><Link className="back-link" to={`/projects/${projectId}`}>← 返回项目</Link><header className="advisor-hero"><div><span className="eyebrow">项目级品牌顾问</span><h1>围绕「{project.data!.name}」继续判断。</h1><p>顾问读取当前项目与所选方案的事实快照，检索法律资料后给出带引用的回答。它不是法律意见。</p></div><Link className="line-button" to="/ai-settings"><Key size={16} />AI 调用设置</Link></header><div className="advisor-layout"><aside className="advisor-sidebar"><h2>从一个明确问题开始</h2>{suggested.map(item => <button key={item} onClick={() => setQuestion(item)}>{item}<ArrowRight size={15} /></button>)}<div className="advisor-boundary"><strong>回答边界</strong><p>模型只解释事实与证据；最终初筛分数仍由系统的可复核规则生成。</p></div></aside><div className="advisor-thread"><div className="advisor-thread-head"><div><h2>对话记录</h2><p>{messages.data!.length ? "每一轮答复都会保存在此项目中。" : "提出第一个问题，开始建立项目决策记录。"}</p></div>{activeRun && <span className="advisor-running"><SpinnerGap className="spin" size={16} />{run.data?.stage ?? "正在检索证据"}</span>}</div>{messages.data!.length ? <div className="advisor-messages">{messages.data!.map(message => <article key={message.consultation_id} className="advisor-message"><div className="advisor-question"><span>你的问题</span><p>{message.question}</p></div><div className="advisor-answer"><span>品牌顾问 · {message.generation_mode}</span><p>{message.answer || "正在生成答复…"}</p>{message.citations.length > 0 && <details><summary>{message.citations.length} 条法律引用</summary>{message.citations.map(citation => <a key={citation.citation_id} href={citation.source_url} target="_blank" rel="noreferrer">{citation.title} · {citation.locator}</a>)}</details>}{message.uncertainties.length > 0 && <small>需注意：{message.uncertainties.join("；")}</small>}</div></article>)}</div> : <Empty icon={<Sparkle size={28} />} title="顾问已准备好" body="选择一个商标方案，并把你真正想判断的问题说清楚。" />}</div></div><form className="advisor-composer" onSubmit={event => { event.preventDefault(); ask.mutate(); }}><label>关联商标方案<select value={caseId} onChange={event => setCaseId(event.target.value)}><option value="">只基于项目业务背景</option>{marks.data!.map(mark => <option key={mark.case_id} value={mark.case_id}>{mark.trademark_name} · 第 {mark.nice_classes.join("、")} 类</option>)}</select></label><label>你想判断什么？<textarea value={question} onChange={event => setQuestion(event.target.value)} placeholder="例如：如果保留这个图形结构，最需要避免与哪些候选产生混淆？" rows={3} minLength={3} required /></label>{ask.error && <ErrorNotice error={ask.error} />}{runError && <div className="product-error"><Warning size={18} />{runError}</div>}<button className="product-button" type="submit" disabled={ask.isPending || Boolean(activeRun)}>{ask.isPending || activeRun ? "正在查询…" : "检索证据并提问"}<ArrowRight size={18} /></button></form></section>;
+}
+function MarkRow({ projectId, mark }: { projectId: string; mark: CaseContext }) { const navigate = useNavigate(); const mutation = useMutation({ mutationFn: () => api.createSearch(mark.case_id), onSuccess: run => navigate(`/projects/${projectId}/tasks/${run.run_id}`) }); return <article className="mark-row"><span className="mark-icon"><Fingerprint size={21} /></span><div><h3>{mark.trademark_name}</h3><p>第 {mark.nice_classes.join("、")} 类 · {mark.business_description}</p></div><button className="line-button" onClick={() => mutation.mutate()} disabled={mutation.isPending}>{mutation.isPending ? "准备中" : "开始初筛"}<ArrowRight size={16} /></button></article>; }
+
+function NewMark() {
+  const { projectId = "" } = useParams(); const navigate = useNavigate(); const [name, setName] = useState(""); const [description, setDescription] = useState(""); const [classes, setClasses] = useState("9, 42"); const [file, setFile] = useState<File | null>(null); const [attachmentAssetId, setAttachmentAssetId] = useState<string | null>(null); const [attachmentName, setAttachmentName] = useState(""); const [notice, setNotice] = useState(""); const [busy, setBusy] = useState(false);
+  const useAttachment = async (selected: File | null) => { if (!selected) return; setAttachmentName(selected.name); setBusy(true); setNotice("正在归一化附件并识别商标信息…"); try { const item = await api.uploadProjectAttachment(projectId, selected); const extracted = item.structure.extracted ?? {}; setName(String(extracted.trademark_name || name)); setDescription(String(extracted.business_description || description)); const values = Array.isArray(extracted.nice_classes) ? extracted.nice_classes : []; if (values.length) setClasses(values.join(", ")); setAttachmentAssetId(item.extracted_image_asset_id); setNotice(`已从“${item.filename}”提取内容，请核对后创建商标。`); } catch (reason) { setNotice(reason instanceof Error ? reason.message : "附件暂时无法处理。"); } finally { setBusy(false); } };
+  const submit = async (event: React.FormEvent) => { event.preventDefault(); setBusy(true); setNotice(""); try { let assetId = attachmentAssetId; let ocr: string | null = null; if (file) { const asset = await api.uploadAsset(file, projectId); assetId = asset.asset_id; ocr = asset.ocr_text; } const nice = classes.split(/[，,\s]+/).filter(Boolean).map(Number); const mark = await api.createMark(projectId, { trademark_name: name, business_description: description, nice_classes: nice, image_asset_id: assetId, confirmed_ocr_text: ocr }); const run = await api.createSearch(mark.case_id); navigate(`/projects/${projectId}/tasks/${run.run_id}`); } catch (reason) { setNotice(reason instanceof Error ? reason.message : "暂时无法创建方案。"); setBusy(false); } };
+  return <section className="form-page"><Link className="back-link" to={`/projects/${projectId}`}>← 返回项目</Link><form className="editor-card wide mark-creation-card" onSubmit={submit}><span className="eyebrow">添加商标方案</span><h1>先导入资料，或从空白方案开始。</h1><p>上传商标登记资料后，系统会提取名称、用途、类别和图样；你确认无误后再开始初筛。</p><section className={`attachment-create-card ${attachmentName ? "has-file" : ""}`}><div className="attachment-create-copy"><span>方式一 · 使用附件创建</span><h2>让材料先帮你填写</h2><p>适合已有申请草稿、说明书或登记资料的情况。原附件会保存到当前项目。</p><small>支持 PDF、DOCX、PNG、JPEG、WebP，单个文件不超过 5MB。</small></div><label className="attachment-picker"><input type="file" accept="application/pdf,.docx,image/png,image/jpeg,image/webp" onChange={e => void useAttachment(e.target.files?.[0] ?? null)} disabled={busy} /><strong>{busy ? "正在识别附件…" : attachmentName ? "重新选择附件" : "选择登记附件"}</strong><span>{attachmentName || "尚未选择文件"}</span></label><div className="attachment-create-steps"><span>上传</span><ArrowRight size={14} /><span>提取</span><ArrowRight size={14} /><span>核对</span></div></section><div className="form-mode-divider"><span>或手动填写方案</span></div><div className="form-two"><label>商标名称<input value={name} onChange={e => setName(e.target.value)} placeholder="例如：星航" required /></label><label>国际分类<input value={classes} onChange={e => setClasses(e.target.value)} placeholder="例如：9, 42" required /></label></div><label>业务或商品服务描述<textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="说明你计划提供的商品或服务" rows={5} required /></label><label className="mark-artwork-field"><span><strong>商标图样（可选）</strong><small>如果附件中未包含图样，可在这里补充。</small></span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={e => setFile(e.target.files?.[0] ?? null)} /><em>{file ? `已选择：${file.name}` : attachmentAssetId ? "附件中的图样已可用于初筛" : "PNG、JPEG 或 WebP，不超过 5MB"}</em></label>{notice && <div className={notice.startsWith("已从") ? "product-success" : "product-error"}><Warning size={18} />{notice}</div>}<button className="product-button" type="submit" disabled={busy}>{busy ? "正在创建分析…" : "确认并开始风险初筛"}<MagnifyingGlass size={18} /></button></form></section>;
+}
+
+function TaskPage() { const { runId = "", projectId = "" } = useParams(); const navigate = useNavigate(); const run = useQuery({ queryKey: ["run", runId], queryFn: () => api.getRun(runId), refetchInterval: query => ["completed", "failed"].includes(query.state.data?.status ?? "") ? false : 900 }); const item = run.data; const routes: Record<string, string> = item?.resource_id ? { search: `/projects/${projectId}/searches/${item.resource_id}`, risk_analysis: `/projects/${projectId}/risks/${item.resource_id}`, document: `/projects/${projectId}/documents/${item.resource_id}` } : {}; const destination = item?.resource_type ? routes[item.resource_type] : undefined; useEffect(() => { if (!item || item.status !== "completed" || !destination) return; const timer = window.setTimeout(() => navigate(destination), 700); return () => clearTimeout(timer); }, [item, destination, navigate]); if (run.isLoading) return <Loading label="正在启动分析" />; if (run.error || !item) return <section className="app-space"><ErrorNotice error={run.error} /><Link className="product-button" to={`/projects/${projectId}`}>返回项目</Link></section>; return <section className="task-screen"><div className="task-orbit"><SpinnerGap className={item.status === "failed" || item.status === "completed" ? "" : "spin"} size={38} /></div><span className="eyebrow">品牌分析</span><h1>{item.stage}</h1><p>{item.status === "failed" ? item.error?.message : item.status === "completed" ? "分析已经完成，正在为你打开结果。" : "正在处理你的方案，请保持当前页面。"}</p><div className="task-progress"><span style={{ width: `${item.progress}%` }} /></div><small>{item.progress}%</small>{item.status === "failed" && <Link className="product-button" to={`/projects/${projectId}`}>返回项目</Link>}{item.status === "completed" && destination && <Link className="product-button" to={destination}>查看分析结果 <ArrowRight size={18} /></Link>}{item.status === "completed" && !destination && <Link className="product-button" to={`/projects/${projectId}`}>返回项目重新发起分析</Link>}</section>; }
+
+export function SearchPage() {
+  const { searchId = "", projectId = "" } = useParams();
   const navigate = useNavigate();
-  return (
-    <header className="page-header">
-      <div className="title-row">
-        {back && <button className="back-button" onClick={() => navigate(back)} aria-label="返回"><CaretLeft size={19} /></button>}
-        <div><Heading as="h1" size="7">{title}</Heading><Text as="p" color="gray" size="3">{description}</Text></div>
-      </div>
-      {action}
-    </header>
-  );
-}
-
-function LoadingState({ label = "正在读取证据" }: { label?: string }) {
-  return <div className="state-panel loading-state"><CircleNotch size={26} className="spin" /><strong>{label}</strong><span>请稍候，页面会自动更新。</span></div>;
-}
-
-function ErrorState({ error, action }: { error: unknown; action?: ReactNode }) {
-  const apiError = error instanceof ApiError ? error : null;
-  return (
-    <div className="state-panel error-state"><Warning size={27} weight="duotone" /><strong>{apiError?.message ?? "暂时无法读取数据"}</strong>
-      <span>{apiError?.requestId ? `请求编号：${apiError.requestId}` : "请确认 API 和 MySQL 已启动。"}</span>{action}
-    </div>
-  );
-}
-
-function EmptyState({ title, description, action }: { title: string; description: string; action?: ReactNode }) {
-  return <div className="state-panel"><FileMagnifyingGlass size={29} weight="duotone" /><strong>{title}</strong><span>{description}</span>{action}</div>;
-}
-
-function StatusBadge({ state }: { state: string }) {
-  const color = state === "ready" || state === "completed" ? "green" : state === "unavailable" || state === "failed" ? "red" : "amber";
-  const labels: Record<string, string> = { ready: "正常", degraded: "降级", unavailable: "不可用", completed: "已完成", failed: "失败", running: "运行中", queued: "排队中" };
-  return <Badge color={color} variant="soft">{labels[state] ?? state}</Badge>;
-}
-
-function HomePage() {
-  const health = useQuery({ queryKey: ["health"], queryFn: api.health, refetchInterval: 30_000 });
-  const dashboard = useQuery({ queryKey: ["dashboard"], queryFn: api.dashboard });
-  const navigate = useNavigate();
-  return (
-    <>
-      <PageHeader title="商标证据工作台" description="从事实确认开始，沿检索、评分、法律依据和报告形成可追溯链路。"
-        action={<Button size="3" onClick={() => navigate("/new")}><Plus size={17} />新建分析</Button>} />
-      {health.isLoading ? <LoadingState label="正在检查系统依赖" /> : health.error ? <ErrorState error={health.error} /> : (
-        <section className="dependency-strip" aria-label="系统依赖">
-          {Object.entries(health.data!.dependencies).map(([key, value]) => (
-            <div key={key}><span>{key === "mysql" ? "MySQL" : key === "deepseek" ? "DeepSeek" : "本地模型"}</span><StatusBadge state={value.status} /><small title={value.detail}>{value.detail}</small></div>
-          ))}
-        </section>
-      )}
-      {dashboard.isLoading ? <LoadingState label="正在读取工作台" /> : dashboard.error ? <ErrorState error={dashboard.error} /> : (
-        <>
-          <section className="metric-layout">
-            <Card className="primary-metric"><div><Text color="gray">商标记录</Text><strong>{dashboard.data!.counts.trademarks.toLocaleString()}</strong><small>{dashboard.data!.data_version}</small></div><Database size={31} weight="duotone" /></Card>
-            <div className="metric-pair">
-              <div><span>法律资料</span><strong>{dashboard.data!.counts.legal_sources}</strong></div>
-              <div><span>分析案件</span><strong>{dashboard.data!.counts.cases}</strong></div>
-            </div>
-            <Card className="law-version"><Scales size={26} weight="duotone" /><div><span>当前适用版本</span><strong>{dashboard.data!.legal_version}</strong><small>2027-01-01 前默认适用</small></div></Card>
-          </section>
-          <section className="home-grid">
-            <div className="section-block">
-              <div className="section-heading"><div><Heading size="4">最近案件</Heading><Text color="gray" size="2">继续查看已有事实快照</Text></div></div>
-              {dashboard.data!.recent_cases.length ? <div className="recent-list">{dashboard.data!.recent_cases.map(item => (
-                <button key={item.case_id} onClick={() => navigate(`/cases/${item.case_id}`)}>
-                  <span className="case-monogram">{item.trademark_name.slice(0, 1)}</span><span><strong>{item.trademark_name}</strong><small>第 {item.nice_classes.join("、")} 类</small></span><ArrowRight size={17} />
-                </button>
-              ))}</div> : <EmptyState title="还没有案件" description="创建首个分析后，案件会保留在这里。" action={<Button onClick={() => navigate("/new")}>开始分析</Button>} />}
-            </div>
-            <aside className="workflow-panel">
-              <Heading size="4">证据链</Heading><Text color="gray" size="2">每一步保存输入、版本和产物</Text>
-              {[ [MagnifyingGlass, "多模态检索", "文字、读音、语义、图像和类别"], [Gauge, "确定性评分", "模型不能修改分数和等级"], [Scales, "法律 RAG", "仅引用适用日期内的官方资料"], [FileText, "可编辑报告", "事实与引用校验后再导出"] ].map(([Icon, title, body]) => {
-                const TypedIcon = Icon as typeof MagnifyingGlass;
-                return <div className="workflow-row" key={String(title)}><TypedIcon size={19} weight="duotone" /><span><strong>{String(title)}</strong><small>{String(body)}</small></span></div>;
-              })}
-            </aside>
-          </section>
-        </>
-      )}
-    </>
-  );
-}
-
-const analysisSchema = z.object({
-  trademarkName: z.string().min(1, "请输入商标名称").max(255),
-  description: z.string().min(2, "请简要描述商品或服务").max(4000),
-  classes: z.string().min(1, "至少填写一个类别").refine(value => value.split(/[，,\s]+/).every(item => { const number = Number(item); return Number.isInteger(number) && number >= 1 && number <= 45; }), "类别应为 1 到 45 的整数"),
-  confirmedOcr: z.string().max(1000).optional()
-});
-type AnalysisForm = z.infer<typeof analysisSchema>;
-
-function NewAnalysisPage() {
-  const navigate = useNavigate();
-  const [file, setFile] = useState<File | null>(null);
-  const [asset, setAsset] = useState<Awaited<ReturnType<typeof api.uploadAsset>> | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-  const form = useForm<AnalysisForm>({ resolver: zodResolver(analysisSchema), defaultValues: { trademarkName: "MarkLens", description: "商标检索与风险分析软件服务", classes: "9, 42", confirmedOcr: "" } });
-  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
-  const submit = form.handleSubmit(async values => {
-    try {
-      setNotice("正在确认图样和事实…");
-      let currentAsset = asset;
-      if (file && !currentAsset) {
-        currentAsset = await api.uploadAsset(file); setAsset(currentAsset);
-        if (currentAsset.ocr_text) form.setValue("confirmedOcr", currentAsset.ocr_text);
-        if (currentAsset.ocr_requires_confirmation) { setNotice("OCR 置信度较低，请确认识别文字后再次提交。"); return; }
-      }
-      const niceClasses = values.classes.split(/[，,\s]+/).filter(Boolean).map(Number);
-      const item = await api.createCase({ trademark_name: values.trademarkName, business_description: values.description, nice_classes: niceClasses, image_asset_id: currentAsset?.asset_id ?? null, confirmed_ocr_text: values.confirmedOcr?.trim() || currentAsset?.ocr_text || null });
-      const run = await api.createSearch(item.case_id); navigate(`/tasks/${run.run_id}`);
-    } catch (error) { setNotice(error instanceof Error ? error.message : "创建失败，请重试。"); }
-  });
-  function chooseFile(next: File | null) {
-    if (preview) URL.revokeObjectURL(preview);
-    setFile(next); setAsset(null); setPreview(next ? URL.createObjectURL(next) : null); setNotice(null);
-  }
-  return (
-    <>
-      <PageHeader title="新建商标分析" description="提交前先确认事实。DeepSeek 只会接收确认文字和结构化证据，不接收原图。" back="/" />
-      <form className="analysis-layout" onSubmit={submit}>
-        <section className="form-surface">
-          <div className="form-section"><Heading size="4">基本事实</Heading><Text color="gray" size="2">这些字段会进入不可变事实快照</Text></div>
-          <label className="field"><span>商标名称</span><TextField.Root size="3" {...form.register("trademarkName")} /><FieldError text={form.formState.errors.trademarkName?.message} /></label>
-          <label className="field"><span>业务描述</span><TextArea size="3" rows={5} resize="vertical" {...form.register("description")} /><FieldError text={form.formState.errors.description?.message} /></label>
-          <label className="field"><span>国际分类</span><TextField.Root size="3" placeholder="例如：9, 35, 42" {...form.register("classes")} /><small>使用逗号分隔，范围为第 1 至 45 类。</small><FieldError text={form.formState.errors.classes?.message} /></label>
-          {(asset?.ocr_text || form.watch("confirmedOcr")) && <label className="field ocr-field"><span>确认 OCR 文字</span><TextField.Root size="3" {...form.register("confirmedOcr")} /><small>识别结果会重新进入文字、读音和语义通道。</small></label>}
-          {notice && <Callout.Root color={notice.includes("失败") || notice.includes("较低") ? "amber" : "blue"}><Callout.Icon><Info /></Callout.Icon><Callout.Text>{notice}</Callout.Text></Callout.Root>}
-          <Flex gap="3"><Button size="3" type="submit" disabled={form.formState.isSubmitting}>{form.formState.isSubmitting ? <CircleNotch className="spin" /> : <MagnifyingGlass />}启动检索</Button><Button type="button" size="3" variant="soft" color="gray" onClick={() => form.reset()}>重置</Button></Flex>
-        </section>
-        <aside className="upload-surface">
-          <div className="form-section"><Heading size="4">商标图样</Heading><Text color="gray" size="2">PNG、JPEG 或 WebP，不超过 5 MB</Text></div>
-          <label className={preview ? "drop-zone has-preview" : "drop-zone"}>
-            <input type="file" accept="image/png,image/jpeg,image/webp" onChange={event => chooseFile(event.target.files?.[0] ?? null)} />
-            {preview ? <img src={preview} alt="待分析商标图样预览" /> : <><UploadSimple size={32} weight="duotone" /><strong>选择或拖入图样</strong><span>系统会移除 EXIF 并校验文件头</span></>}
-          </label>
-          {file && <div className="file-row"><span><strong>{file.name}</strong><small>{(file.size / 1024).toFixed(1)} KB</small></span><button type="button" onClick={() => chooseFile(null)} aria-label="移除图样"><X size={17} /></button></div>}
-          <div className="privacy-note"><ShieldCheck size={20} weight="duotone" /><p><strong>图像边界</strong><span>原图只用于本地 OCR、pHash 与图像向量，不发送给 DeepSeek。</span></p></div>
-        </aside>
-      </form>
-    </>
-  );
-}
-
-function FieldError({ text }: { text?: string }) { return text ? <small className="field-error">{text}</small> : null; }
-
-function taskErrorMessage(code: string, message: string) {
-  if (code === "MODEL_NOT_CONFIGURED") return message;
-  if (code === "AGENT_EXECUTION_FAILED") return "任务执行失败，请稍后重试。若问题持续，请向维护者提供下方任务编号。";
-  return "任务未能完成，请稍后重试。";
-}
-
-function TaskPage() {
-  const { runId = "" } = useParams();
-  const navigate = useNavigate();
-  const run = useQuery({ queryKey: ["run", runId], queryFn: () => api.getRun(runId), refetchInterval: query => ["completed", "failed"].includes(query.state.data?.status ?? "") ? false : 900 });
-  useEffect(() => {
-    const data = run.data; if (!data || data.status !== "completed" || !data.resource_id) return;
-    const routes: Record<string, string> = { search: `/searches/${data.resource_id}`, risk_analysis: `/risks/${data.resource_id}`, document: `/documents/${data.resource_id}`, consultation: `/consultations/${data.resource_id}`, ingestion_run: `/ingestions/${data.resource_id}` };
-    const timer = window.setTimeout(() => navigate(routes[data.resource_type ?? ""] ?? "/"), 450); return () => window.clearTimeout(timer);
-  }, [run.data, navigate]);
-  if (run.isLoading) return <LoadingState label="正在读取任务状态" />;
-  if (run.error) return <ErrorState error={run.error} />;
-  if (!run.data) return <ErrorState error={new Error("任务状态为空")} />;
-  const data = run.data;
-  return <div className="task-page"><motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="task-card">
-    <span className={`task-icon ${data.status}`}><AgentIcon type={data.agent_type} /></span><Heading size="6">{data.stage}</Heading><Text color="gray">任务状态会自动刷新，完成后进入对应产物。</Text>
-    <Progress value={data.progress} size="3" color={data.status === "failed" ? "red" : "blue"} /><div className="task-meta"><StatusBadge state={data.status} /><span>{data.progress}%</span></div>
-    {data.error && <Callout.Root color="red"><Callout.Icon><Warning /></Callout.Icon><Callout.Text><strong>{data.error.code}</strong><br />{taskErrorMessage(data.error.code, data.error.message)}<br /><small>任务编号：{data.run_id}</small></Callout.Text></Callout.Root>}
-    {data.error?.code === "MODEL_NOT_CONFIGURED" && <Text size="2" color="gray">请在根目录 .env 中填写 DEEPSEEK_API_KEY，然后重新创建任务。检索功能不受影响。</Text>}
-    <Button variant="soft" color="gray" onClick={() => navigate("/")}>返回工作台</Button>
-  </motion.div></div>;
-}
-
-function AgentIcon({ type }: { type: string }) {
-  if (type === "search") return <MagnifyingGlass size={30} weight="duotone" />;
-  if (type === "risk") return <Gauge size={30} weight="duotone" />;
-  if (type === "document") return <FileText size={30} weight="duotone" />;
-  if (type === "ingestion") return <CloudArrowUp size={30} weight="duotone" />;
-  return <BookOpenText size={30} weight="duotone" />;
-}
-
-function SearchPage() {
-  const { searchId = "" } = useParams(); const navigate = useNavigate(); const reduce = useReducedMotion();
   const query = useQuery({ queryKey: ["search", searchId], queryFn: () => api.getSearch(searchId) });
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const risk = useMutation({ mutationFn: () => api.createRisk(searchId), onSuccess: run => navigate(`/tasks/${run.run_id}`) });
-  if (query.isLoading) return <LoadingState label="正在读取检索证据" />;
-  if (query.error) return <ErrorState error={query.error} />;
-  if (!query.data) return <ErrorState error={new Error("检索产物为空")} />;
-  const bundle = query.data; const selected = bundle.hits.find(item => item.hit_id === selectedId) ?? bundle.hits[0];
-  return <>
-    <PageHeader title="近似检索结果" description={`已合并 ${bundle.hits.length} 个候选。分数用于教学风险排序，不是官方审查结论。`} back="/new" action={<Button size="3" disabled={!bundle.hits.length || risk.isPending} onClick={() => risk.mutate()}><Gauge />生成风险分析</Button>} />
-    {bundle.evidence_quality === "demo_only" && <Callout.Root color="amber" className="page-callout"><Callout.Icon><Warning /></Callout.Icon><Callout.Text>当前命中全部来自明确标注的演示数据。请勿将结果用于真实申请决策。</Callout.Text></Callout.Root>}
-    {!bundle.hits.length ? <EmptyState title="没有可用候选" description="当前数据库为空或没有形成有效召回，请先在数据源页面完成同步。" /> : <div className="results-layout">
-      <section className="candidate-list" aria-label="相似商标候选">
-        <div className="list-toolbar"><span>Top {bundle.top_k}</span><Badge variant="soft">{bundle.evidence_quality}</Badge></div>
-        {bundle.hits.map((hit, index) => <motion.button key={hit.hit_id} initial={reduce ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * .035 }} onClick={() => setSelectedId(hit.hit_id)} className={hit.hit_id === selected.hit_id ? "candidate-row selected" : "candidate-row"}>
-          <CandidateImage hit={hit} /><span className="candidate-main"><span><strong>{hit.name}</strong>{hit.is_demo && <Badge color="gray" variant="soft">演示</Badge>}{!hit.is_demo && hit.jurisdiction !== "CN" && <Badge color="blue" variant="soft">{hit.jurisdiction} 参考</Badge>}</span><small>{hit.application_number}</small><small>{hit.applicant}</small></span><span className="candidate-score"><strong>{Math.round(hit.scores.overall * 100)}</strong><small>综合分</small></span>
-        </motion.button>)}
-      </section>
-      <EvidenceDetail hit={selected} methodology={bundle.methodology} />
-    </div>}
-  </>;
+  // Hooks must run before every early return, otherwise loading -> result causes a React render error.
+  const risk = useMutation({ mutationFn: () => api.createRisk(searchId), onSuccess: run => navigate(`/projects/${projectId}/tasks/${run.run_id}`) });
+  if (query.isLoading) return <Loading label="正在读取初筛结果" />;
+  if (query.error || !query.data) return <ErrorNotice error={query.error} />;
+  const data = query.data;
+  return <section className="app-space"><Link className="back-link" to={`/projects/${projectId}`}>← 返回项目</Link><div className="result-title"><div><span className="eyebrow">初筛候选</span><h1>“{String(data.query.trademark_name ?? "该方案")}”的相似线索</h1><p>每个候选均可查看图样、文字和类别依据；图样缺失时会明确显示，避免把没有证据的维度伪装成结论。</p></div><button className="product-button" onClick={() => risk.mutate()} disabled={risk.isPending}>生成风险解读 <Gauge size={18} /></button></div><div className="candidate-stack">{data.hits.map(hit => <article className="candidate-card candidate-card-visual" key={hit.hit_id}><span className="candidate-rank">{String(hit.rank).padStart(2, "0")}</span><TrademarkThumbnail trademarkId={hit.trademark_id} name={hit.name} /><div className="candidate-main"><div><h2>{hit.name}</h2><span>第 {hit.nice_classes.join("、")} 类 · {hit.status}</span></div><p>{hit.goods_services.join("、")}</p><div className="reason-pills">{hit.reasons.slice(0, 3).map(reason => <span key={reason}>{reason}</span>)}</div>{hit.scores.visual_basis === "course_showcase_configured_gradient" && <span className="showcase-note">课程展示预设图样梯度</span>}{hit.visual_review && <div className={`visual-review ${hit.visual_review.status}`}><strong>{hit.visual_review.status === "completed" ? `模型视觉复核 ${Math.round((hit.visual_review.score ?? 0) * 100)}%` : "模型视觉复核"}</strong><span>{hit.visual_review.reason}</span></div>}</div><div className="score-ring"><strong>{Math.round(hit.scores.overall * 100)}</strong><small>相似线索</small></div></article>)}</div></section>;
 }
 
-function CandidateImage({ hit }: { hit: TrademarkEvidence }) {
-  return hit.image_asset_id ? <img className="candidate-image" src={assetUrl(hit.image_asset_id)} alt={`${hit.name}演示商标图样`} /> : <span className="candidate-image placeholder">{hit.name.slice(0, 1)}</span>;
-}
-
-function EvidenceDetail({ hit, methodology }: { hit: TrademarkEvidence; methodology: Record<string, unknown> }) {
-  const radar = [ ["视觉", hit.scores.visual], ["文字", hit.scores.text], ["读音", hit.scores.phonetic], ["语义", hit.scores.semantic], ["类别", hit.scores.category] ].map(([subject, value]) => ({ subject, value: Math.round(Number(value ?? 0) * 100) }));
-  return <aside className="evidence-detail">
-    <div className="evidence-title"><div><Text color="gray" size="2">证据详情</Text><Heading size="5">{hit.name}</Heading></div><span className="score-seal"><strong>{Math.round(hit.scores.overall * 100)}</strong><small>/ 100</small></span></div>
-    <div className="image-comparison"><CandidateImage hit={hit} /><div><span>申请人</span><strong>{hit.applicant}</strong><span>类别</span><strong>第 {hit.nice_classes.join("、")} 类</strong><span>状态</span><strong>{hit.status}</strong></div></div>
-    <div className="radar-wrap"><ResponsiveContainer width="100%" height={260}><RadarChart data={radar} outerRadius="68%"><PolarGrid stroke="var(--line)" /><PolarAngleAxis dataKey="subject" tick={{ fill: "var(--text-muted)", fontSize: 12 }} /><Radar dataKey="value" stroke="var(--accent)" fill="var(--accent)" fillOpacity={.18} /><ChartTooltip /></RadarChart></ResponsiveContainer></div>
-    <div className="reason-block"><Heading size="3">相似理由</Heading>{hit.reasons.map(item => <p key={item}><Check size={16} />{item}</p>)}</div>
-    <dl className="model-meta"><div><dt>来源</dt><dd>{hit.source_name}</dd></div><div><dt>记录标识</dt><dd>{hit.source_record_id}</dd></div><div><dt>评分版本</dt><dd>{hit.model_versions.scoring}</dd></div></dl>
-    <Text size="1" color="gray">{String(methodology.notice ?? "分数仅供教学演示。")}</Text>
-  </aside>;
-}
-
-const riskLabels: Record<RiskLevel, { title: string; className: string }> = { high: { title: "高风险", className: "high" }, medium: { title: "中风险", className: "medium" }, low: { title: "低风险", className: "low" }, insufficient_evidence: { title: "证据不足", className: "unknown" } };
-
-function RiskPage() {
-  const { analysisId = "" } = useParams(); const navigate = useNavigate();
+export function RiskPage() {
+  const { analysisId = "", projectId = "" } = useParams();
+  const navigate = useNavigate();
   const query = useQuery({ queryKey: ["risk", analysisId], queryFn: () => api.getRisk(analysisId) });
-  const document = useMutation({ mutationFn: () => api.createDocument(analysisId), onSuccess: run => navigate(`/tasks/${run.run_id}`) });
-  if (query.isLoading) return <LoadingState label="正在读取风险分析" />;
-  if (query.error) return <ErrorState error={query.error} />;
-  if (!query.data) return <ErrorState error={new Error("风险产物为空")} />;
-  const data = query.data; const risk = riskLabels[data.risk_level];
-  return <>
-    <PageHeader title="注册风险分析" description={`分析日期 ${data.analysis_date}，适用 ${data.applicable_law_version}。`} back={`/searches/${data.search_id}`} action={<Button size="3" onClick={() => document.mutate()} disabled={document.isPending}><FileText />生成报告</Button>} />
-    <section className={`risk-hero ${risk.className}`}><div className="risk-score"><span>确定性评分</span><strong>{Math.round(data.risk_score * 100)}</strong><small>满分 100</small></div><div><Badge color={data.risk_level === "high" ? "red" : data.risk_level === "medium" ? "amber" : data.risk_level === "low" ? "green" : "gray"}>{risk.title}</Badge><Heading size="6">{data.risk_factors[0]?.title ?? "需要结合证据复核"}</Heading><Text color="gray">{data.risk_factors[0]?.detail ?? data.uncertainties[0]}</Text></div><div className="risk-method"><span>评分归属</span><strong>确定性引擎</strong><span>证据质量</span><strong>{data.evidence_quality}</strong><span>模型可改分数</span><strong>否</strong></div></section>
-    <div className="risk-grid"><section className="risk-body">
-      <ReportGroup icon={<Warning />} title="主要风险因素">{data.risk_factors.map((item, index) => <article key={index}><strong>{item.title ?? `风险因素 ${index + 1}`}</strong><p>{item.detail ?? String(Object.values(item)[0])}</p></article>)}</ReportGroup>
-      <ReportGroup icon={<ShieldCheck />} title="反向证据">{data.counter_evidence.length ? data.counter_evidence.map(item => <p className="line-item" key={item}>{item}</p>) : <Text color="gray">暂无足以降低风险的反向证据。</Text>}</ReportGroup>
-      <ReportGroup icon={<FileMagnifyingGlass />} title="修改建议">{data.suggestions.map(item => <p className="line-item" key={item}>{item}</p>)}</ReportGroup>
-      {data.uncertainties.length > 0 && <Callout.Root color="amber"><Callout.Icon><Info /></Callout.Icon><Callout.Text><strong>不确定性</strong>{data.uncertainties.map(item => <span className="callout-line" key={item}>{item}</span>)}</Callout.Text></Callout.Root>}
-    </section><CitationPanel citations={data.citations} /></div>
-    <div className="legal-footer">{data.disclaimer}</div>
-  </>;
+  const saved = useQuery({ queryKey: ["saved-document", analysisId], queryFn: () => api.savedDocument(analysisId), retry: false });
+  const evidence = useQuery({ queryKey: ["risk-evidence", query.data?.search_id], queryFn: () => api.getSearch(query.data!.search_id), enabled: Boolean(query.data?.search_id) });
+  const doc = useMutation({ mutationFn: () => api.createDocument(analysisId), onSuccess: run => navigate(`/projects/${projectId}/tasks/${run.run_id}`) });
+  const labels: Record<RiskAssessment["risk_level"], string> = { low: "较低", medium: "需要留意", high: "较高", insufficient_evidence: "证据不足" };
+  if (query.isLoading) return <Loading label="正在读取风险解读" />;
+  if (query.error || !query.data) return <ErrorNotice error={query.error} />;
+  const data = query.data; const hits = evidence.data?.hits ?? []; const candidate = hits[0]; const factors = (data.risk_factors ?? []).filter(item => Boolean(String(item.title ?? "").trim() || String(item.detail ?? "").trim())); const suggestions = data.suggestions ?? []; const counterEvidence = data.counter_evidence ?? []; const uncertainties = data.uncertainties ?? []; const citations = data.citations ?? []; const factorItems = factors.length ? factors.map(item => `${String(item.title ?? "风险线索")}：${String(item.detail ?? "请结合候选记录继续复核。")}`) : ["当前报告来自较早的简版模板。下方仍会基于已保存的候选分数展开图文和类别依据；重新生成风险解读可获得完整文字说明。"];
+  const queryAssetId = typeof evidence.data?.query.image_asset_id === "string" ? evidence.data.query.image_asset_id : "";
+  const scoreItems = candidate ? [{ label: "文字构成", value: candidate.scores.text, hint: "核心词、字形与整体称呼" }, { label: "读音", value: candidate.scores.phonetic, hint: "常见读法、音节和称呼习惯" }, { label: "语义", value: candidate.scores.semantic, hint: "概念联想与业务语境" }, { label: "图样", value: candidate.scores.visual, hint: "轮廓、构图、主体元素与色彩" }, { label: "类别", value: candidate.scores.category, hint: "尼斯类别及具体商品服务关系" }] : [];
+  return <section className="app-space"><Link className="back-link" to={`/projects/${projectId}`}>← 返回项目</Link><section className={`risk-banner ${data.risk_level}`}><div><span className="eyebrow">风险初筛结果</span><h1>{labels[data.risk_level]}</h1><p>系统根据当前候选、图文分项和可复核规则形成提示；它不是注册成功概率，也不替代官方检索。</p></div><div className="risk-number"><strong>{Math.round(data.risk_score * 100)}</strong><span>风险线索指数</span></div></section>{candidate && <SimilarityRadar scores={candidate.scores} candidateName={candidate.name} jurisdiction={candidate.jurisdiction} />}<section className="risk-visual-evidence"><div className="risk-section-heading"><div><span className="eyebrow">图样证据板</span><h2>把图形商标放在一起看</h2></div><p>左侧为本次方案，右侧为候选图样。图样分数用于辅助排序，最终仍应由人核对主要识别元素。</p></div><div className="visual-comparison-row"><div className="reference-mark"><span>本次方案</span><ImageFrame src={queryAssetId ? assetUrl(queryAssetId) : ""} name={String(evidence.data?.query.trademark_name ?? "未提供图样")} /></div><div className="comparison-arrow">→</div><div className="candidate-visual-grid">{hits.slice(0, 5).map(hit => <article key={hit.hit_id}><div><TrademarkThumbnail trademarkId={hit.trademark_id} name={hit.name} /><span className="visual-score">图样 {Math.round((hit.scores.visual ?? 0) * 100)}%</span></div><strong>{hit.name}</strong><small>综合 {Math.round(hit.scores.overall * 100)} · 第 {hit.nice_classes.join("、")} 类</small></article>)}</div></div></section><section className="risk-detail-grid"><div className="risk-detail-card risk-summary-card"><span className="eyebrow">01 · 事实与优先级</span><h2>本次需要先看什么</h2><p>当前优先候选为「{candidate?.name ?? "待加载"}」。其综合线索为 {candidate ? `${Math.round(candidate.scores.overall * 100)}%` : "待加载"}，建议先核对主要识别文字、图样主体和重合的商品服务。</p><div className="risk-fact-row"><span>候选数量<b>{hits.length}</b></span><span>证据质量<b>{data.evidence_quality === "sufficient" ? "可复核" : data.evidence_quality === "demo_only" ? "教学样本" : "待补充"}</b></span><span>分析日期<b>{data.analysis_date}</b></span></div></div><div className="risk-detail-card"><span className="eyebrow">02 · 分项依据</span><h2>分数不只是一张雷达图</h2><div className="score-explainer">{scoreItems.map(item => <div key={item.label}><div><strong>{item.label}</strong><b>{Math.round((item.value ?? 0) * 100)}%</b></div><span><i style={{ width: `${Math.round((item.value ?? 0) * 100)}%` }} /></span><small>{item.hint}</small></div>)}</div></div></section><section className="risk-detail-grid"><InfoBlock title="03 · 主要关注点" items={factorItems} /><InfoBlock title="04 · 可以继续核实的方向" items={suggestions} /></section><section className="risk-detail-grid"><InfoBlock title="05 · 有利因素与反向观察" items={counterEvidence} /><InfoBlock title="06 · 不确定性与适用边界" items={uncertainties} /></section><section className="candidate-evidence-table"><div className="risk-section-heading"><div><span className="eyebrow">候选清单</span><h2>逐条看证据，不只看第一名</h2></div><p>候选来自当前数据源的召回结果；境外来源会标明法域，仅作为相似度参考。</p></div><div className="candidate-evidence-rows">{hits.slice(0, 8).map(hit => <article key={hit.hit_id}><span>{String(hit.rank).padStart(2, "0")}</span><TrademarkThumbnail trademarkId={hit.trademark_id} name={hit.name} /><div><strong>{hit.name}</strong><small>{hit.application_number} · {hit.jurisdiction} · 第 {hit.nice_classes.join("、")} 类</small></div><div className="candidate-score-bars"><span>文字<i style={{ width: `${Math.round((hit.scores.text ?? 0) * 100)}%` }} /></span><span>图样<i style={{ width: `${Math.round((hit.scores.visual ?? 0) * 100)}%` }} /></span></div><b>{Math.round(hit.scores.overall * 100)}%</b></article>)}</div></section><div className="risk-layout"><div className="risk-columns"><InfoBlock title="07 · 法律依据与来源" items={citations.length ? citations.map(item => `《${item.title}》${item.locator}：${item.excerpt}`) : ["当前未关联到可用法律条文摘录。生成正式报告前应补充对应法域、有效日期内的法律依据。"]} /></div><aside className="evidence-aside"><h2>下一步</h2><p>{data.evidence_quality === "demo_only" ? "当前结果基于教学样本。正式决策前请补充合规数据源与官方检索。" : "将重要候选、图样与商品服务关系带入官方检索和人工复核。"}</p>{saved.data ? <><p className="saved-report-note">这份分析已有已保存报告，可继续编辑或导出。</p><Link className="product-button" to={`/projects/${projectId}/documents/${saved.data.document_id}`}>打开已保存报告 <FileText size={18} /></Link></> : <button className="product-button" onClick={() => doc.mutate()} disabled={doc.isPending}>{doc.isPending ? "正在准备报告…" : "生成并保存报告"} <FileText size={18} /></button>}{doc.error && <ErrorNotice error={doc.error} />}</aside></div></section>;
 }
+function InfoBlock({ title, items }: { title: string; items: string[] }) { return <section className="info-block"><h2>{title}</h2>{items.length ? <ul>{items.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul> : <p>当前没有额外提示。</p>}</section>; }
 
-function ReportGroup({ icon, title, children }: { icon: ReactNode; title: string; children: ReactNode }) { return <section className="report-group"><div className="report-group-title">{icon}<Heading size="4">{title}</Heading></div><div>{children}</div></section>; }
-
-function CitationPanel({ citations }: { citations: Citation[] }) {
-  return <aside className="citation-panel"><div><Heading size="4">法律引用</Heading><Text color="gray" size="2">仅显示分析日期内有效资料</Text></div>{citations.length ? citations.map((citation, index) => <a href={citation.source_url} target="_blank" rel="noreferrer" key={citation.citation_id} className="citation-card"><span>[{index + 1}] {citation.authority}</span><strong>{citation.title}</strong><small>{citation.locator}</small><p>{citation.excerpt}</p></a>) : <EmptyState title="没有有效引用" description="当前证据不足，不能给出确定性结论。" />}</aside>;
+function ImageFrame({ src, name }: { src: string; name: string }) {
+  const [resolvedSrc, setResolvedSrc] = useState<string | null>(null);
+  const [status, setStatus] = useState<"loading" | "ready" | "missing" | "failed">(src ? "loading" : "missing");
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    let active = true; let objectUrl = "";
+    setResolvedSrc(null); setStatus(src ? "loading" : "missing");
+    if (!src) return undefined;
+    void protectedImageUrl(src).then(url => {
+      objectUrl = url;
+      if (active) { setResolvedSrc(url); setStatus("ready"); } else URL.revokeObjectURL(url);
+    }).catch(() => { if (active) setStatus("failed"); });
+    return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [src, attempt]);
+  if (resolvedSrc && status === "ready") return <div className="trademark-image-frame"><img src={resolvedSrc} alt={`${name} 图样`} onError={() => setStatus("failed")} /></div>;
+  const copy = status === "loading" ? "正在读取图样" : status === "missing" ? "来源未归档图样" : "图样读取失败";
+  return <div className="trademark-image-frame"><button type="button" className={`trademark-image-fallback ${status}`} onClick={() => src && setAttempt(value => value + 1)} disabled={!src || status === "loading"} aria-label={`${copy}${src ? "，点击重试" : ""}`}><Fingerprint size={29} /><small>{copy}</small>{status === "failed" && <em>点击重试</em>}</button></div>;
 }
+function TrademarkThumbnail({ trademarkId, name }: { trademarkId: string; name: string }) { return <ImageFrame src={trademarkImageUrl(trademarkId)} name={name} />; }
+
+function SimilarityRadar({ scores, candidateName, jurisdiction }: { scores: { visual: number | null; text: number | null; phonetic: number | null; semantic: number | null; category: number | null }; candidateName: string; jurisdiction: string }) { const metrics = [{ label: "文字", value: scores.text }, { label: "读音", value: scores.phonetic }, { label: "语义", value: scores.semantic }, { label: "图样", value: scores.visual }, { label: "类别", value: scores.category }]; const c = 110; const r = 70; const p = (i: number, v: number) => { const a = -Math.PI / 2 + i * Math.PI * 2 / metrics.length; return `${c + Math.cos(a) * r * v},${c + Math.sin(a) * r * v}`; }; return <section className="similarity-radar"><div><span className="eyebrow">多模态相似度画像</span><h2>与「{candidateName}」的分项比对</h2><p>{jurisdiction === "CN" || jurisdiction === "DEMO" ? "本图展示可复核的检索分项。" : `候选来自 ${jurisdiction}，仅作为跨法域相似度参考。`}</p><div className="radar-metrics">{metrics.map(item => <span key={item.label}><b>{Math.round((item.value ?? 0) * 100)}</b>{item.label}</span>)}</div></div><svg viewBox="0 0 220 220" role="img" aria-label="多模态相似度雷达图">{[.25,.5,.75,1].map(v => <polygon key={v} points={metrics.map((_, i) => p(i, v)).join(" ")} className="radar-grid" />)}{metrics.map((_, i) => <line key={i} x1={c} y1={c} x2={p(i, 1).split(",")[0]} y2={p(i, 1).split(",")[1]} className="radar-axis" />)}<polygon points={metrics.map((item, i) => p(i, Math.max(0, Math.min(1, item.value ?? 0)))).join(" ")} className="radar-shape" />{metrics.map((item, i) => { const a=-Math.PI/2+i*Math.PI*2/metrics.length; return <text key={item.label} x={c+Math.cos(a)*94} y={c+Math.sin(a)*94} textAnchor="middle" dominantBaseline="middle" className="radar-label">{item.label}</text>; })}</svg></section>; }
 
 function DocumentPage() {
-  const { documentId = "" } = useParams(); const queryClient = useQueryClient(); const navigate = useNavigate();
+  const { documentId = "", projectId = "" } = useParams();
+  const queryClient = useQueryClient();
   const query = useQuery({ queryKey: ["document", documentId], queryFn: () => api.getDocument(documentId) });
-  const analysisId = query.data?.analysis_id ?? "";
-  const riskQuery = useQuery({ queryKey: ["risk", analysisId], queryFn: () => api.getRisk(analysisId), enabled: Boolean(analysisId) });
-  const [sections, setSections] = useState<DocumentSection[]>([]);
-  const [isEditing, setIsEditing] = useState(false);
-  useEffect(() => { if (query.data) setSections(query.data.sections); }, [query.data]);
-  const save = useMutation({ mutationFn: () => api.updateDocument(documentId, sections), onSuccess: data => { queryClient.setQueryData(["document", documentId], data); setIsEditing(false); } });
-  const validate = useMutation({ mutationFn: () => api.validateDocument(documentId), onSuccess: data => queryClient.setQueryData(["document", documentId], data) });
-  if (query.isLoading) return <LoadingState label="正在读取文书初稿" />;
-  if (query.error) return <ErrorState error={query.error} />;
-  if (!query.data) return <ErrorState error={new Error("文书产物为空")} />;
-  const data = query.data;
-  const riskData = riskQuery.data;
-  const riskMeta = riskData ? riskLabels[riskData.risk_level] : riskLabels.insufficient_evidence;
-  const citationNumbers = new Map(data.citations.map((citation, index) => [citation.citation_id, index + 1]));
-  const characterCount = sections.reduce((total, section) => total + section.content.length, 0);
-  const evidenceQualityLabel = ({ sufficient: "可供初筛", partial: "部分充分", insufficient: "证据不足" } as Record<string, string>)[riskData?.evidence_quality ?? ""] ?? "待核验";
-  const generationModeLabel = ({ deepseek: "受约束模型生成", model: "受约束模型生成", template_fallback: "专业模板生成", template: "专业模板生成" } as Record<string, string>)[data.generation_mode] ?? "受控生成";
-  return <div className="document-page"><header className="document-toolbar"><button className="back-button" onClick={() => navigate(`/risks/${data.analysis_id}`)} aria-label="返回风险分析"><CaretLeft /></button><div><strong>评估报告</strong><span>已生成约 {characterCount.toLocaleString("zh-CN")} 字，可逐段编辑并重新校验</span></div><Flex gap="2"><Button variant="soft" onClick={() => setIsEditing(value => !value)}>{isEditing ? <Eye /> : <PencilSimple />}{isEditing ? "预览" : "编辑报告"}</Button><Button variant="soft" onClick={() => validate.mutate()} disabled={validate.isPending}><ShieldCheck />校验</Button>{isEditing && <Button onClick={() => save.mutate()} disabled={save.isPending}><Check />保存修改</Button>}<Button color="gray" variant="outline" disabled={!data.can_export || isEditing} onClick={() => window.print()}><Printer />打印 PDF</Button></Flex></header>
-    {data.validation_errors.length ? <Callout.Root color="red" className="page-callout"><Callout.Icon><Warning /></Callout.Icon><Callout.Text>发现 {data.validation_errors.length} 个事实或引用问题，修复前禁止正式导出。</Callout.Text></Callout.Root> : <Callout.Root color="green" className="page-callout"><Callout.Icon><ShieldCheck /></Callout.Icon><Callout.Text>当前事实和引用校验通过。导出前仍需人工复核。</Callout.Text></Callout.Root>}
-    <div className="editor-layout"><article className="document-sheet"><header className="report-cover"><div className="report-brand"><span>MARKLENS</span><strong>商标注册风险评估</strong></div><div className="report-cover-copy"><span>内部决策参考 / 教学演示</span><h1>{data.title}</h1><p>TRADEMARK REGISTRATION RISK ASSESSMENT</p></div><dl className="report-cover-meta"><div><dt>文书编号</dt><dd>ML-{data.document_id.slice(0, 8).toUpperCase()}</dd></div><div><dt>分析日期</dt><dd>{riskData?.analysis_date ?? "待确认"}</dd></div><div><dt>适用规范</dt><dd>{riskData?.applicable_law_version ?? "正在读取"}</dd></div><div><dt>更新日期</dt><dd>{new Date(data.updated_at).toLocaleDateString("zh-CN")}</dd></div></dl></header><section className={`report-opinion ${riskMeta.className}`}><div><span>初步风险结论</span><strong>{riskMeta.title}</strong><small>结论受证据范围和人工复核约束</small></div><div className="report-score"><span>确定性评分</span><strong>{riskData ? Math.round(riskData.risk_score * 100) : "--"}</strong><small>/ 100</small></div><dl><div><dt>证据质量</dt><dd>{evidenceQualityLabel}</dd></div><div><dt>生成方式</dt><dd>{generationModeLabel}</dd></div><div><dt>法律引用</dt><dd>{data.citations.length} 项</dd></div></dl></section><div className="report-toc"><strong>报告目录</strong><ol>{sections.map((section, index) => <li key={section.section_id}><span>{String(index + 1).padStart(2, "0")}</span>{section.title}</li>)}</ol></div>{sections.map((section, index) => <section key={section.section_id} className="editable-section"><div className="report-section-heading"><span>{String(index + 1).padStart(2, "0")}</span>{isEditing ? <TextField.Root value={section.title} onChange={event => setSections(items => items.map(item => item.section_id === section.section_id ? { ...item, title: event.target.value } : item))} /> : <h2>{section.title}</h2>}</div>{isEditing ? <TextArea rows={Math.min(28, Math.max(8, Math.ceil(section.content.length / 42)))} resize="vertical" value={section.content} onChange={event => setSections(items => items.map(item => item.section_id === section.section_id ? { ...item, content: event.target.value } : item))} /> : <div className="report-copy">{section.content}</div>}{section.citation_ids.length > 0 && <div className="report-section-citations">本节依据 {section.citation_ids.map(id => citationNumbers.get(id)).filter(Boolean).map(number => <span key={number}>[{number}]</span>)}</div>}</section>)}<footer className="report-document-footer"><span>MarkLens 可信商标工作台</span><span>本报告不构成法律意见</span><span>ML-{data.document_id.slice(0, 8).toUpperCase()}</span></footer></article><aside className="report-sidebar"><section className="report-quality"><div><ShieldCheck size={22} /><strong>报告质量控制</strong></div><dl><div><dt>事实一致性</dt><dd>{data.validation_errors.length ? "需要修订" : "校验通过"}</dd></div><div><dt>引用有效性</dt><dd>{data.citations.length ? `${data.citations.length} 项可回溯` : "证据不足"}</dd></div><div><dt>导出状态</dt><dd>{data.can_export ? "允许打印" : "暂缓导出"}</dd></div></dl>{data.validation_errors.length > 0 && <div className="quality-errors">{data.validation_errors.slice(0, 4).map((error, index) => <span key={index}>{String(error.code ?? "VALIDATION_ERROR")}</span>)}</div>}</section><CitationPanel citations={data.citations} /></aside></div>
-  </div>;
+  const [draft, setDraft] = useState<DocumentDraft | null>(null);
+  useEffect(() => { if (query.data) setDraft(query.data); }, [query.data]);
+  const save = useMutation({ mutationFn: () => api.updateDocument(documentId, draft!.sections), onSuccess: item => { setDraft(item); queryClient.setQueryData(["document", documentId], item); } });
+  const exportPdf = useMutation({ mutationFn: () => api.exportDocument(documentId) });
+  if (query.isLoading || !draft) return <Loading label="正在打开报告" />;
+  if (query.error) return <ErrorNotice error={query.error} />;
+  return <section className="report-page"><Link className="back-link" to={`/projects/${projectId}`}>← 返回项目</Link><div className="report-toolbar"><div><span className="eyebrow">可编辑报告 · 已保存到项目</span><h1>{draft.title}</h1></div><div className="report-actions"><button className="quiet-button" onClick={() => exportPdf.mutate()} disabled={exportPdf.isPending}>{exportPdf.isPending ? "正在导出…" : "导出 PDF"}<DownloadSimple size={18} /></button><button className="product-button" onClick={() => save.mutate()} disabled={save.isPending}>{save.isPending ? "正在保存…" : "保存修改"}<CheckCircle size={18} /></button></div></div>{exportPdf.error && <ErrorNotice error={exportPdf.error} />}{draft.validation_errors.length > 0 && <div className="product-error"><Warning size={18} />报告仍有 {draft.validation_errors.length} 项待校验内容，暂不应作为正式法律意见使用。</div>}<article className="report-sheet">{draft.sections.map((section, index) => <section key={section.section_id}><label>{section.title}<textarea value={section.content} onChange={event => setDraft({ ...draft, sections: draft.sections.map((item, position) => position === index ? { ...item, content: event.target.value } : item) })} rows={Math.max(4, Math.ceil(section.content.length / 42))} /></label></section>)}</article></section>;
 }
 
-function ConsultationPage() {
-  const navigate = useNavigate(); const [question, setQuestion] = useState("文字和图形都有一定差异时，组合商标仍可能被认定近似吗？");
-  const mutation = useMutation({ mutationFn: () => api.createConsultation(question), onSuccess: run => navigate(`/tasks/${run.run_id}`) });
-  return <><PageHeader title="商标法律咨询" description="回答来自适用日期过滤后的法律资料，并逐条返回可回溯引用。" />
-    <div className="consult-layout"><section className="consult-main"><div className="consult-intro"><Scales size={34} weight="duotone" /><div><Heading size="5">先检索证据，再组织回答</Heading><Text color="gray">知识库文本只作为证据数据，不能覆盖系统规则或触发工具。</Text></div></div><label className="field"><span>你的问题</span><TextArea size="3" rows={7} value={question} onChange={event => setQuestion(event.target.value)} /></label><Flex justify="between" align="center"><Text size="1" color="gray">请勿输入个人敏感信息或未公开商业秘密。</Text><Button size="3" disabled={question.trim().length < 3 || mutation.isPending} onClick={() => mutation.mutate()}><BookOpenText />检索并回答</Button></Flex>{mutation.error && <ErrorState error={mutation.error} />}</section><aside className="question-guide"><Heading size="4">适合咨询</Heading>{["商标近似判断通常考虑哪些因素", "商品或服务类别如何影响冲突判断", "驳回风险报告中的引用如何理解", "现行法与未来版本如何按日期适用"].map(item => <button key={item} onClick={() => setQuestion(item)}>{item}<ArrowRight size={15} /></button>)}<Separator size="4" /><Text size="2" color="gray">不提供正式代理、申请提交、诉讼策略或替代律师的确定性结论。</Text></aside></div>
-  </>;
+function Learn({ user }: { user: CurrentUser | null }) {
+  const topics = useQuery({ queryKey: ["topics"], queryFn: api.topics }); const videos = useQuery({ queryKey: ["learning-videos"], queryFn: api.learningVideos }); const questions = useQuery({ queryKey: ["questions"], queryFn: api.questions }); const dashboard = useQuery({ queryKey: ["dashboard"], queryFn: api.dashboard, enabled: Boolean(user) });
+  if (topics.isLoading || videos.isLoading || questions.isLoading) return <Loading label="正在打开学习中心" />; if (topics.error || videos.error || questions.error) return <ErrorNotice error={topics.error ?? videos.error ?? questions.error} />;
+  const cardCount = topics.data!.reduce((sum, topic) => sum + topic.article_count, 0); const progress = dashboard.data?.learning_progress;
+  return <section className="learning-page"><header className="learning-command"><div><span className="eyebrow">MarkLens 学习中心</span><h1>学会判断，再推进你的品牌。</h1><p>视频建立直觉，知识卡拆解规则，案例实训检验你的判断。每一步都能回到项目里使用。</p><div className="learning-actions"><Link className="product-button" to={topics.data![0] ? `/learn/${topics.data![0].slug}` : "/learn"}>从第一条路径开始 <ArrowRight size={17} /></Link><Link className="text-link" to="/practice">直接做一道实训题</Link></div></div><aside className="learning-meter"><span>你的学习记录</span><strong>{progress?.attempts ?? 0}<small> 次实训</small></strong><p>{user ? `已判断正确 ${progress?.correct ?? 0} 次。` : "登录后可保存练习记录与项目成果。"}</p></aside></header><div className="learning-stats"><div><strong>{cardCount}</strong><span>条可检索知识卡</span></div><div><strong>{videos.data!.length}</strong><span>节精选外部微课</span></div><div><strong>{questions.data!.length}</strong><span>道案例实训题</span></div><div><strong>3</strong><span>段可执行学习路径</span></div></div><section className="learning-path-section"><div className="learning-section-head"><div><span className="eyebrow">建议学习路径</span><h2>不是堆内容，而是一条判断路线。</h2></div><p>每一段都从“先理解”走到“能判断”，再回到真实项目里应用。</p></div><div className="learning-path-grid">{topics.data!.map((topic, index) => <article className="learning-path-card" key={topic.topic_id}><span className="path-index">{String(index + 1).padStart(2, "0")}</span><span className="path-label">第 {index + 1} 段</span><h3>{topic.title}</h3><p>{topic.summary}</p><div><span>{topic.article_count} 张知识卡</span><span>{videos.data!.filter(video => video.topic_slug === topic.slug).length} 节微课</span></div><Link to={`/learn/${topic.slug}`}>进入这一段 <ArrowRight size={16} /></Link></article>)}</div></section><section className="video-shelf"><div className="learning-section-head"><div><span className="eyebrow">精选视频微课</span><h2>先用一段可信的讲解建立框架。</h2></div><p>视频由运营侧人工挑选，点击后在哔哩哔哩播放；MarkLens 不转载或托管视频内容。</p></div><div className="video-grid">{videos.data!.map((video, index) => <article className="video-card" key={video.video_id}><div className="video-cover"><span>B</span><small>{String(index + 1).padStart(2, "0")} · {video.duration_label}</small></div><div className="video-card-body"><span>{video.topic_title} · 哔哩哔哩</span><h3>{video.title}</h3><p>{video.learning_objective}</p><a href={video.external_url} target="_blank" rel="noreferrer">去 B 站观看 <ArrowRight size={16} /></a></div></article>)}</div></section><section className="knowledge-shelf"><div className="learning-section-head"><div><span className="eyebrow">知识卡图书架</span><h2>把一个大问题拆成许多个小判断。</h2></div><p>按关键字快速定位你正在遇到的概念、误区和下一步。</p></div><div className="topic-grid">{topics.data!.map((topic, index) => <Link className="topic-card" to={`/learn/${topic.slug}`} key={topic.topic_id}><span>{String(index + 1).padStart(2, "0")}</span><h2>{topic.title}</h2><p>{topic.summary}</p><small>{topic.article_count} 篇内容 <ArrowRight size={15} /></small></Link>)}</div></section><section className="learning-bridge"><BookOpenText size={27} /><div><strong>学完后，去做一次判断。</strong><p>案例实训会保留你的答题记录；真实商标方案则可以在“我的项目”中开始初筛。</p></div><div><Link className="line-button" to="/practice">开始案例实训 <ArrowRight size={15} /></Link><Link className="line-button" to="/projects">打开我的项目 <ArrowRight size={15} /></Link></div></section></section>;
 }
+function Topic() { const { slug = "" } = useParams(); const articles = useQuery({ queryKey: ["topic", slug], queryFn: () => api.topic(slug) }); const videos = useQuery({ queryKey: ["learning-videos"], queryFn: api.learningVideos }); const [keyword, setKeyword] = useState(""); if (articles.isLoading || videos.isLoading) return <Loading label="正在读取学习内容" />; if (articles.error || videos.error) return <ErrorNotice error={articles.error ?? videos.error} />; const visible = articles.data!.filter(item => `${item.title}${item.body}`.includes(keyword.trim())); const topicVideos = videos.data!.filter(video => video.topic_slug === slug); return <section className="article-page"><Link className="back-link" to="/learn">← 返回学习中心</Link><span className="eyebrow">商标知识库</span><h1>{articles.data!.length} 条可检索学习卡片</h1><p className="article-lead">每一条都从一个具体判断点出发。先搜索你正在遇到的问题，再展开阅读和记录。</p>{topicVideos.length > 0 && <section className="topic-video-strip"><strong>先看一节视频微课</strong>{topicVideos.map(video => <a href={video.external_url} target="_blank" rel="noreferrer" key={video.video_id}><span>B</span><div><small>{video.duration_label} · 哔哩哔哩</small><b>{video.title}</b></div><ArrowRight size={17} /></a>)}</section>}<label className="library-search">搜索知识点<input value={keyword} onChange={event => setKeyword(event.target.value)} placeholder="例如：显著性、读音、异议" /></label><div className="library-count">显示 {visible.length} / {articles.data!.length} 条</div><div className="article-library">{visible.map(article => <details key={article.article_id}><summary><span>{article.title.slice(0, 3)}</span>{article.title.slice(5)}<ArrowRight size={16} /></summary><p>{article.body}</p></details>)}</div></section>; }
 
-function ConsultationResultPage() {
-  const { consultationId = "" } = useParams(); const query = useQuery({ queryKey: ["consultation", consultationId], queryFn: () => api.getConsultation(consultationId) });
-  if (query.isLoading) return <LoadingState label="正在读取咨询答复" />; if (query.error) return <ErrorState error={query.error} />;
-  if (!query.data) return <ErrorState error={new Error("咨询答复为空")} />;
-  const data = query.data; return <><PageHeader title="法律咨询答复" description="答复中的结论强度受证据质量约束。" back="/consult" /><div className="consult-result"><article><div className="question-quote"><span>问题</span><strong>{data.question}</strong></div><div className="answer-copy">{data.answer}</div>{data.uncertainties.length > 0 && <Callout.Root color="amber"><Callout.Icon><Info /></Callout.Icon><Callout.Text>{data.uncertainties.map(item => <span className="callout-line" key={item}>{item}</span>)}</Callout.Text></Callout.Root>}<div className="legal-footer">{data.disclaimer}</div></article><CitationPanel citations={data.citations} /></div></>;
+function Practice({ user }: { user: CurrentUser | null }) { const navigate = useNavigate(); const questions = useQuery({ queryKey: ["questions"], queryFn: api.questions }); const [current, setCurrent] = useState(0); const [result, setResult] = useState<{ correct: boolean; explanation: string } | null>(null); const [pending, setPending] = useState(""); if (questions.isLoading) return <Loading label="正在准备实训题目" />; if (questions.error) return <ErrorNotice error={questions.error} />; const all = questions.data!; const question = all[current]; if (!question) return <Empty icon={<GraduationCap size={28} />} title="题库正在准备" body="运营人员发布题目后会显示在这里。" />; const answer = async (option: string) => { if (!user) { navigate("/login"); return; } setPending(option); try { const item = await api.answerQuestion(question.question_id, option); setResult({ correct: item.is_correct, explanation: item.explanation }); } finally { setPending(""); } }; const next = () => { setCurrent(value => (value + 1) % all.length); setResult(null); setPending(""); }; return <section className="practice-page"><div><span className="eyebrow">案例实训题库</span><h1>你来当一次审查员</h1><p>当前共有 {all.length} 道题。选择更稳妥的判断方法，再查看解析。</p></div><article className="practice-card"><div className="practice-topline"><span className="practice-difficulty">{question.difficulty === "basic" ? "入门" : question.difficulty}</span><span>第 {current + 1} / {all.length} 题</span></div><h2>{question.title}</h2><p>{question.prompt}</p><div className="answer-list">{question.options.map(option => <button key={option.id} onClick={() => answer(option.id)} disabled={Boolean(pending) || Boolean(result)}><span>{option.id.toUpperCase()}</span>{option.label}</button>)}</div>{result && <div className={result.correct ? "answer-result correct" : "answer-result incorrect"}><strong>{result.correct ? "判断正确" : "还可以再想一想"}</strong><p>{result.explanation}</p><button className="line-button" onClick={next}>下一题 <ArrowRight size={15} /></button></div>}</article></section>; }
+
+function Ops({ user }: { user: CurrentUser | null }) {
+  const isAdmin = user?.roles.includes("admin") ?? false;
+  const [section, setSection] = useState<"overview" | "content" | "data" | "access">("overview");
+  const overview = useQuery({ queryKey: ["ops-overview"], queryFn: api.opsOverview, enabled: Boolean(user) });
+  const sources = useQuery({ queryKey: ["ops-sources"], queryFn: api.getSources, enabled: Boolean(user) });
+  const topics = useQuery({ queryKey: ["ops-topics"], queryFn: api.opsTopics, enabled: Boolean(user) });
+  const videos = useQuery({ queryKey: ["ops-videos"], queryFn: api.opsVideos, enabled: Boolean(user) });
+  const questions = useQuery({ queryKey: ["ops-questions"], queryFn: api.opsQuestions, enabled: Boolean(user) });
+  const runs = useQuery({ queryKey: ["ops-runs"], queryFn: api.opsRuns, enabled: Boolean(user) });
+  const users = useQuery({ queryKey: ["admin-users"], queryFn: api.adminUsers, enabled: isAdmin });
+  const sync = useMutation({ mutationFn: api.syncSource, onSuccess: () => sources.refetch() });
+  if (!user?.roles.some(role => role === "operator" || role === "admin")) return <Navigate to="/projects" replace />;
+  if (overview.isLoading || sources.isLoading || topics.isLoading || videos.isLoading || questions.isLoading || runs.isLoading) return <Loading label="正在打开运营后台" />;
+  if (overview.error || sources.error || topics.error || videos.error || questions.error || runs.error) return <ErrorNotice error={overview.error ?? sources.error ?? topics.error ?? videos.error ?? questions.error ?? runs.error} />;
+  const navItems = [
+    ["overview", "总览", <GridFour size={18} />], ["content", "内容与题库", <BookOpenText size={18} />],
+    ["data", "数据中心", <Stack size={18} />], ["access", "用户与角色", <UsersThree size={18} />],
+  ] as const;
+  return <div className="ops-shell"><aside className="ops-sidebar"><nav className="ops-navigation"><span>运营中心</span>{navItems.map(([key, label, icon]) => <button key={key} type="button" className={section === key ? "active" : ""} onClick={() => setSection(key)}>{icon}{label}</button>)}</nav><Link to="/projects" className="ops-return">返回用户端 <ArrowRight size={15} /></Link></aside><main className="ops-main"><div className="ops-title"><div><span className="eyebrow">{section === "content" ? "内容运营" : section === "data" ? "数据治理" : section === "access" ? "访问管理" : "运营总览"}</span><h1>{section === "content" ? "维护用户端的学习体验" : section === "data" ? "让数据来源保持可追溯" : section === "access" ? "分配后台访问范围" : "平台正在发生什么"}</h1></div><span className="ops-user"><Key size={16} />{user.display_name}</span></div>{section === "overview" && <><div className="ops-metrics"><Metric label="注册用户" value={overview.data!.users} /><Metric label="品牌项目" value={overview.data!.projects} /><Metric label="已发布学习主题" value={overview.data!.published_topics} /><Metric label="已完成任务" value={overview.data!.runs.completed ?? 0} /></div><OpsVisualOverview overview={overview.data!} sources={sources.data!} topics={topics.data!} videos={videos.data!} questions={questions.data!} runs={runs.data!} /><section className="ops-panel"><div className="ops-panel-head"><div><h2>最近任务</h2><p>只展示任务状态和资源类型，不在运营后台暴露用户项目中的商标名称、图样或报告正文。</p></div></div><div className="ops-source-list">{runs.data!.slice(0, 8).map(run => <div key={run.run_id}><div><strong>{run.agent_type === "search" ? "初筛检索" : run.agent_type === "risk" ? "风险解读" : run.agent_type === "document" ? "报告生成" : "数据同步"}</strong><span>{run.stage} · {run.progress}% · {new Date(run.updated_at).toLocaleString()}</span></div><span className={`ops-status ${run.status}`}>{run.status}</span></div>)}</div></section></>}{section === "content" && <><section className="ops-panel"><div className="ops-panel-head"><div><h2>学习专题</h2><p>发布后立即出现在用户端学习中心。现在每个核心专题都已具备 100 条以上可搜索的学习卡片。</p></div></div><div className="ops-source-list">{topics.data!.map(topic => <div key={topic.topic_id}><div><strong>{topic.title}</strong><span>{topic.article_count} 篇内容 · /learn/{topic.slug}</span></div><Link className="line-button" to={`/learn/${topic.slug}`}>预览 <ArrowRight size={15} /></Link></div>)}</div><OpsTopicForm /></section><section className="ops-panel"><div className="ops-panel-head"><div><h2>视频微课</h2><p>只保存人工审核过的 B 站链接；用户端会新标签打开，不转载或内嵌视频。</p></div><strong className="ops-count">{videos.data!.filter(item => item.is_published).length} / {videos.data!.length} 已发布</strong></div><div className="ops-source-list">{videos.data!.map(video => <div key={video.video_id}><div><strong>{video.title}</strong><span>{video.topic_title} · {video.duration_label} · {video.provider}</span></div><a className="line-button" href={video.external_url} target="_blank" rel="noreferrer">查看来源 <ArrowRight size={15} /></a></div>)}</div><OpsVideoForm topics={topics.data!} /></section><section className="ops-panel"><div className="ops-panel-head"><div><h2>案例题库</h2><p>题目发布后会进入用户端案例实训；答案和解析只保留在运营侧。</p></div><strong className="ops-count">{questions.data!.filter(item => item.is_published).length} / {questions.data!.length} 已发布</strong></div><div className="ops-source-list">{questions.data!.slice(0, 8).map(item => <div key={item.question_id}><div><strong>{item.title}</strong><span>{item.difficulty} · 正确答案 {item.correct_option.toUpperCase()}</span></div><span className={`ops-status ${item.is_published ? "completed" : "queued"}`}>{item.is_published ? "已发布" : "草稿"}</span></div>)}</div><OpsQuestionForm /></section></>}{section === "data" && <><OpsDataCoverage sources={sources.data!} /><section className="ops-panel"><div className="ops-panel-head"><div><h2>数据源与同步</h2><p>仅已登记、许可范围明确的数据源可以触发同步。同步任务会进入上方“最近任务”。</p></div></div><div className="ops-source-list">{sources.data!.map(source => <div key={source.source_key}><div><strong>{source.name}</strong><span>{source.record_count} 条记录 · {source.health} · 最近同步 {source.last_synced_at ? new Date(source.last_synced_at).toLocaleString() : "尚未同步"}</span></div><button className="line-button" onClick={() => sync.mutate(source.source_key)} disabled={sync.isPending}>同步数据 <ArrowRight size={15} /></button></div>)}</div>{sync.error && <ErrorNotice error={sync.error} />}</section></>}{section === "access" && <section className="ops-panel"><h2>用户与角色</h2><p>运营人员只能管理公共内容和数据源；只有管理员能调整角色。用户自己的项目、图样、检索结果和报告始终按归属校验。</p>{isAdmin ? <div className="ops-source-list">{users.data?.map(item => <div key={item.user_id}><div><strong>{item.display_name}</strong><span>{item.email} · {item.roles.join(" / ")}</span></div><RoleControl userId={item.user_id} roles={item.roles} /></div>)}</div> : <Empty icon={<ShieldCheck size={28} />} title="当前为运营人员权限" body="你可以维护内容和数据源；角色变更由管理员处理。" />}</section>}<section className="ops-panel subdued"><h2>权限与审计</h2><p>创建内容、发布题目、同步数据和调整角色都会记录审计事件；用户端与运营端采用不同接口和角色校验。</p></section></main></div>;
 }
-
-function SourcesPage() {
-  const queryClient = useQueryClient(); const navigate = useNavigate();
-  const query = useQuery({ queryKey: ["sources"], queryFn: api.getSources });
-  const sync = useMutation({ mutationFn: (source: SourceDefinition) => api.syncSource(source.source_key), onSuccess: run => { queryClient.invalidateQueries({ queryKey: ["sources"] }); navigate(`/tasks/${run.run_id}`); } });
-  return <><PageHeader title="数据源管理" description="只能同步服务端显式注册的适配器。HTTP 适配器必须声明许可、域名白名单和限速。" />
-    {query.isLoading ? <LoadingState label="正在读取数据源" /> : query.error ? <ErrorState error={query.error} /> : query.data?.length ? <section className="source-grid">{query.data.map(source => <Card key={source.source_key} className="source-card"><div className="source-top"><span className="source-icon"><Database size={22} weight="duotone" /></span><div><Heading size="4">{source.name}</Heading><Text size="2" color="gray">{source.source_key}</Text></div><StatusBadge state={source.health === "ready" ? "ready" : "unavailable"} /></div><dl><div><dt>适配器</dt><dd>{source.adapter_type.toUpperCase()}</dd></div><div><dt>记录数</dt><dd>{source.record_count}</dd></div><div><dt>最后同步</dt><dd>{source.last_synced_at ? new Date(source.last_synced_at).toLocaleString("zh-CN") : "尚未同步"}</dd></div></dl><div className="license-box"><span>来源许可</span><strong>{source.license_name}</strong><p>{source.terms_summary}</p></div><Button variant="soft" disabled={!source.enabled || source.health !== "ready" || sync.isPending} onClick={() => sync.mutate(source)}><CloudArrowUp />同步数据</Button></Card>)}</section> : <EmptyState title="没有已注册数据源" description="运行 make seed 初始化 JSON 和 CSV 演示适配器。" />}
-  </>;
+function Metric({ label, value }: { label: string; value: number }) { return <div className="ops-metric"><span>{label}</span><strong>{value.toLocaleString()}</strong></div>; }
+function OpsVisualOverview({ overview, sources, topics, videos, questions, runs }: { overview: { users: number; projects: number; runs: Record<string, number> }; sources: Array<{ source_key: string; name: string; record_count: number; health: string }>; topics: LearningTopic[]; videos: Array<{ is_published: boolean }>; questions: Array<{ is_published: boolean }>; runs: AgentRun[] }) {
+  const terminal = runs.filter(run => ["completed", "failed"].includes(run.status)); const completed = terminal.filter(run => run.status === "completed").length; const completion = terminal.length ? Math.round(completed / terminal.length * 100) : 100; const maximum = Math.max(...sources.map(source => source.record_count), 1); const published = topics.reduce((total, topic) => total + topic.article_count, 0) + videos.filter(item => item.is_published).length + questions.filter(item => item.is_published).length;
+  return <section className="ops-insight-grid"><article className="ops-visual-card ops-health-card"><div className="ops-donut" style={{ background: `conic-gradient(#2a7d76 ${completion * 3.6}deg, #e0e8ee 0)` }}><div><strong>{completion}%</strong><span>完成率</span></div></div><div><span className="ops-card-kicker">任务健康度</span><h2>{overview.runs.failed ?? 0} 条需关注</h2><p>{completed} 条已完成，{overview.runs.queued ?? 0} 条等待执行。只统计后台可见的任务状态。</p></div></article><article className="ops-visual-card"><span className="ops-card-kicker">数据源覆盖</span><h2>{sources.reduce((sum, source) => sum + source.record_count, 0).toLocaleString()} 条已登记记录</h2><div className="ops-source-bars">{sources.slice(0, 4).map(source => <div key={source.source_key}><div><span>{source.name}</span><b>{source.record_count.toLocaleString()}</b></div><i><em style={{ width: `${Math.max(4, source.record_count / maximum * 100)}%` }} /></i><small>{source.health}</small></div>)}</div></article><article className="ops-visual-card"><span className="ops-card-kicker">公共内容结构</span><h2>{published.toLocaleString()} 个已发布内容单元</h2><div className="ops-content-map"><div><span style={{ width: `${Math.max(12, topics.length / Math.max(topics.length + videos.length + questions.length, 1) * 100)}%` }} /><strong>{topics.length}</strong><small>学习专题</small></div><div><span style={{ width: `${Math.max(12, videos.filter(item => item.is_published).length / Math.max(topics.length + videos.length + questions.length, 1) * 100)}%` }} /><strong>{videos.filter(item => item.is_published).length}</strong><small>视频微课</small></div><div><span style={{ width: `${Math.max(12, questions.filter(item => item.is_published).length / Math.max(topics.length + videos.length + questions.length, 1) * 100)}%` }} /><strong>{questions.filter(item => item.is_published).length}</strong><small>案例题目</small></div></div></article></section>;
 }
-
-function IngestionPage() {
-  const { ingestionId = "" } = useParams();
-  const query = useQuery({ queryKey: ["ingestion", ingestionId], queryFn: () => api.getIngestion(ingestionId) });
-  if (query.isLoading) return <LoadingState label="正在读取导入统计" />;
-  if (query.error) return <ErrorState error={query.error} />;
-  if (!query.data) return <ErrorState error={new Error("导入记录为空")} />;
-  const data = query.data;
-  return <><PageHeader title="数据同步结果" description={`数据源 ${data.source_key} 的规范化、去重和写入统计。`} back="/sources" />
-    <section className="ingestion-summary">{[
-      ["读取", data.fetched_count], ["新增", data.created_count], ["更新", data.updated_count],
-      ["未变化", data.skipped_count], ["失败", data.failed_count]
-    ].map(([label, value]) => <div key={String(label)}><span>{label}</span><strong>{value}</strong></div>)}</section>
-    {data.errors.length ? <section className="error-records"><Heading size="4">失败记录</Heading>{data.errors.map((error, index) => <div key={index}><Badge color="red">{String(error.record ?? error.cursor ?? index + 1)}</Badge><span>{String(error.error ?? "未知错误")}</span></div>)}</section> : <EmptyState title="同步记录通过" description="本次分页中的记录均完成校验或幂等跳过。" />}
-  </>;
+function OpsDataCoverage({ sources }: { sources: Array<{ source_key: string; name: string; record_count: number; health: string }> }) { const maximum = Math.max(...sources.map(source => source.record_count), 1); return <section className="ops-data-coverage"><div><span className="eyebrow">记录规模与健康状态</span><h2>数据源不是一张列表</h2><p>用相对柱形查看各来源的记录规模；健康状态与同步动作仍在下方保留为可操作项。</p></div><div className="ops-data-bars">{sources.map(source => <div key={source.source_key}><span>{source.name}</span><i><em style={{ width: `${Math.max(4, source.record_count / maximum * 100)}%` }} /></i><b>{source.record_count.toLocaleString()}</b><small>{source.health}</small></div>)}</div></section>; }
+function OpsTopicForm() {
+  const queryClient = useQueryClient();
+  const [title, setTitle] = useState(""); const [summary, setSummary] = useState(""); const [body, setBody] = useState(""); const [published, setPublished] = useState(true);
+  const create = useMutation({ mutationFn: api.createOpsTopic, onSuccess: () => { setTitle(""); setSummary(""); setBody(""); queryClient.invalidateQueries({ queryKey: ["ops-topics"] }); queryClient.invalidateQueries({ queryKey: ["topics"] }); } });
+  const submit = (event: React.FormEvent) => { event.preventDefault(); const slug = title.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || `topic-${Date.now()}`; create.mutate({ slug, title, summary, body, is_published: published }); };
+  return <form className="ops-composer" onSubmit={submit}><header><span className="composer-kicker">知识内容</span><div><h3>新建学习主题</h3><p>标题、简介和正文会以一张学习卡片出现在用户端。先保存草稿也可以。</p></div></header><div className="ops-form-grid"><label className="span-2">主题标题<input value={title} onChange={event => setTitle(event.target.value)} placeholder="例如：商标显著性与命名边界" required /></label><label className="span-2">一句话简介<input value={summary} onChange={event => setSummary(event.target.value)} placeholder="告诉用户这组内容能解决什么问题" required /></label><label className="span-2">面向用户的内容正文<textarea value={body} onChange={event => setBody(event.target.value)} placeholder="使用清晰的段落、具体案例和可执行的判断方法。" rows={6} required /></label></div><footer><label className="publish-choice"><input type="checkbox" checked={published} onChange={event => setPublished(event.target.checked)} />立即发布到学习中心</label><button className="product-button small" type="submit" disabled={create.isPending}>{create.isPending ? "正在保存…" : published ? "发布学习主题" : "保存为草稿"}<ArrowRight size={16} /></button></footer>{create.error && <ErrorNotice error={create.error} />}</form>;
 }
-
-function CasePage() {
-  const { caseId = "" } = useParams(); const navigate = useNavigate();
-  const query = useQuery({ queryKey: ["case", caseId], queryFn: async () => { const response = await fetch(`/api/v1/cases/${caseId}`); if (!response.ok) throw new Error("案件不存在"); return response.json(); } });
-  const search = useMutation({ mutationFn: () => api.createSearch(caseId), onSuccess: run => navigate(`/tasks/${run.run_id}`) });
-  if (query.isLoading) return <LoadingState />; if (query.error) return <ErrorState error={query.error} />;
-  if (!query.data) return <ErrorState error={new Error("案件事实为空")} />;
-  const item = query.data; return <><PageHeader title={item.trademark_name} description="已确认的案件事实快照" back="/" action={<Button onClick={() => search.mutate()}><MagnifyingGlass />重新检索</Button>} /><Card className="case-detail"><dl><div><dt>业务描述</dt><dd>{item.business_description}</dd></div><div><dt>国际分类</dt><dd>第 {item.nice_classes.join("、")} 类</dd></div><div><dt>OCR 文字</dt><dd>{item.confirmed_ocr_text || "未提供"}</dd></div><div><dt>创建时间</dt><dd>{new Date(item.created_at).toLocaleString("zh-CN")}</dd></div></dl>{item.image_asset_id && <img src={assetUrl(item.image_asset_id)} alt={`${item.trademark_name}商标图样`} />}</Card></>;
+function OpsVideoForm({ topics }: { topics: LearningTopic[] }) {
+  const queryClient = useQueryClient(); const [topicSlug, setTopicSlug] = useState(topics[0]?.slug ?? ""); const [title, setTitle] = useState(""); const [url, setUrl] = useState(""); const [duration, setDuration] = useState("外部视频"); const [objective, setObjective] = useState(""); const [published, setPublished] = useState(true);
+  const create = useMutation({ mutationFn: api.createOpsVideo, onSuccess: () => { setTitle(""); setUrl(""); setDuration("外部视频"); setObjective(""); queryClient.invalidateQueries({ queryKey: ["ops-videos"] }); queryClient.invalidateQueries({ queryKey: ["learning-videos"] }); } });
+  const submit = (event: React.FormEvent) => { event.preventDefault(); create.mutate({ topic_slug: topicSlug, title, provider: "bilibili", external_url: url, duration_label: duration, learning_objective: objective, is_published: published }); };
+  return <form className="ops-composer video-composer" onSubmit={submit}><header><span className="composer-kicker">视频微课</span><div><h3>收录一节 B 站视频</h3><p>请只填写已人工核验、与商标学习直接相关的视频。用户端会跳转到原页面播放。</p></div></header><div className="ops-form-grid"><label>关联主题<select value={topicSlug} onChange={event => setTopicSlug(event.target.value)}>{topics.map(topic => <option key={topic.topic_id} value={topic.slug}>{topic.title}</option>)}</select></label><label>学习时长标签<input value={duration} onChange={event => setDuration(event.target.value)} placeholder="例如：15 分钟 / 外部短课" required /></label><label className="span-2">视频标题<input value={title} onChange={event => setTitle(event.target.value)} placeholder="例如：如何办理商标申请：动画科普" required /></label><label className="span-2">哔哩哔哩 HTTPS 链接<input type="url" value={url} onChange={event => setUrl(event.target.value)} placeholder="https://www.bilibili.com/video/BV…" required /></label><label className="span-2">本节要解决什么问题<textarea value={objective} onChange={event => setObjective(event.target.value)} placeholder="说明用户看完后可以理解或完成的一个具体判断。" rows={3} required /></label></div><footer><label className="publish-choice"><input type="checkbox" checked={published} onChange={event => setPublished(event.target.checked)} />立即发布到学习中心</label><button className="product-button small" type="submit" disabled={create.isPending}>{create.isPending ? "正在收录…" : published ? "发布视频微课" : "保存为草稿"}<ArrowRight size={16} /></button></footer>{create.error && <ErrorNotice error={create.error} />}</form>;
 }
-
-function NotFoundPage() { const navigate = useNavigate(); return <EmptyState title="页面不存在" description="链接可能已失效，返回工作台继续操作。" action={<Button onClick={() => navigate("/")}>返回工作台</Button>} />; }
+function OpsQuestionForm() {
+  const queryClient = useQueryClient();
+  const [title, setTitle] = useState(""); const [prompt, setPrompt] = useState(""); const [options, setOptions] = useState(["", "", "", ""]); const [answer, setAnswer] = useState("a"); const [explanation, setExplanation] = useState(""); const [difficulty, setDifficulty] = useState<"basic" | "intermediate" | "advanced">("basic"); const [published, setPublished] = useState(true);
+  const create = useMutation({ mutationFn: api.createOpsQuestion, onSuccess: () => { setTitle(""); setPrompt(""); setOptions(["", "", "", ""]); setAnswer("a"); setExplanation(""); queryClient.invalidateQueries({ queryKey: ["ops-questions"] }); queryClient.invalidateQueries({ queryKey: ["questions"] }); } });
+  const submit = (event: React.FormEvent) => { event.preventDefault(); create.mutate({ title, prompt, options: options.map((label, index) => ({ id: String.fromCharCode(97 + index), label })), correct_option: answer, explanation, difficulty, is_published: published }); };
+  return <form className="ops-composer question-composer" onSubmit={submit}><header><span className="composer-kicker">案例实训</span><div><h3>设计一道判断题</h3><p>让用户先做判断，再通过解析理解商标审查中的具体依据。</p></div></header><div className="ops-form-grid"><label>题目标题<input value={title} onChange={event => setTitle(event.target.value)} placeholder="例如：近似读音是否需要避让" required /></label><label>难度<select value={difficulty} onChange={event => setDifficulty(event.target.value as typeof difficulty)}><option value="basic">入门</option><option value="intermediate">进阶</option><option value="advanced">挑战</option></select></label><label className="span-2">题干<textarea value={prompt} onChange={event => setPrompt(event.target.value)} placeholder="描述清楚商标名称、类别、业务场景和需要用户作出的判断。" rows={4} required /></label><fieldset className="span-2"><legend>备选答案</legend><div className="ops-option-grid">{options.map((option, index) => <label key={index}><span>{String.fromCharCode(65 + index)}</span><input value={option} onChange={event => setOptions(items => items.map((item, position) => position === index ? event.target.value : item))} placeholder={`填写选项 ${String.fromCharCode(65 + index)}`} required /></label>)}</div></fieldset><label>正确选项<select value={answer} onChange={event => setAnswer(event.target.value)}>{options.map((_, index) => <option key={index} value={String.fromCharCode(97 + index)}>{String.fromCharCode(65 + index)}</option>)}</select></label><label className="span-2">解析与判断依据<textarea value={explanation} onChange={event => setExplanation(event.target.value)} placeholder="解释为什么该选项更稳妥，并提醒用户仍需进行官方检索或专业复核。" rows={4} required /></label></div><footer><label className="publish-choice"><input type="checkbox" checked={published} onChange={event => setPublished(event.target.checked)} />立即发布到案例实训</label><button className="product-button small" type="submit" disabled={create.isPending}>{create.isPending ? "正在保存…" : published ? "发布案例题" : "保存为草稿"}<ArrowRight size={16} /></button></footer>{create.error && <ErrorNotice error={create.error} />}</form>;
+}
+function RoleControl({ userId, roles }: { userId: string; roles: string[] }) { const queryClient = useQueryClient(); const current = roles.includes("admin") ? "admin" : roles.includes("operator") ? "operator" : "user"; const mutation = useMutation({ mutationFn: (role: string) => api.updateUserRoles(userId, role === "admin" ? ["user", "operator", "admin"] : role === "operator" ? ["user", "operator"] : ["user"],), onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-users"] }) }); return <select className="role-select" value={current} onChange={e => mutation.mutate(e.target.value)} disabled={mutation.isPending}><option value="user">普通用户</option><option value="operator">运营人员</option><option value="admin">管理员</option></select>; }
+function Empty({ icon, title, body, action }: { icon: ReactNode; title: string; body: string; action?: ReactNode }) { return <div className="empty-card"><span>{icon}</span><h2>{title}</h2><p>{body}</p>{action}</div>; }
 
 export function App() {
-  const [appearance, setAppearanceState] = useState<Appearance>(initialAppearance);
-  function setAppearance(value: Appearance) { setAppearanceState(value); localStorage.setItem("marklens-theme", value); }
-  return <Theme appearance={appearance} accentColor="blue" grayColor="slate" radius="medium" scaling="100%"><AppShell appearance={appearance} setAppearance={setAppearance}><Routes>
-    <Route path="/" element={<HomePage />} /><Route path="/new" element={<NewAnalysisPage />} /><Route path="/tasks/:runId" element={<TaskPage />} />
-    <Route path="/cases/:caseId" element={<CasePage />} /><Route path="/searches/:searchId" element={<SearchPage />} /><Route path="/risks/:analysisId" element={<RiskPage />} />
-    <Route path="/documents/:documentId" element={<DocumentPage />} /><Route path="/consult" element={<ConsultationPage />} /><Route path="/consultations/:consultationId" element={<ConsultationResultPage />} />
-    <Route path="/sources" element={<SourcesPage />} /><Route path="/ingestions/:ingestionId" element={<IngestionPage />} /><Route path="*" element={<NotFoundPage />} />
-  </Routes></AppShell></Theme>;
+  const [auth, setAuth] = useState<AuthState>({ user: null, ready: false });
+  useEffect(() => { let mounted = true; const boot = async () => { try { const user = await api.me(); if (mounted) setAuth({ user, ready: true }); } catch { try { const data = await api.refresh(); setAccessToken(data.access_token); if (mounted) setAuth({ user: data.user, ready: true }); } catch { clearAccessToken(); if (mounted) setAuth({ user: null, ready: true }); } } }; void boot(); return () => { mounted = false; }; }, []);
+  const authenticated = (user: CurrentUser, token: string) => { setAccessToken(token); setAuth({ user, ready: true }); };
+  const logout = async () => { try { await api.logout(); } finally { aiSession.clear(); clearAccessToken(); setAuth({ user: null, ready: true }); } };
+  if (!auth.ready) return <Loading label="正在安全连接 MarkLens" />;
+  return <ProductShell user={auth.user} onLogout={logout}><RouteBoundary><Routes><Route path="/" element={<Home />} /><Route path="/login" element={auth.user ? <Navigate to="/projects" /> : <AuthPage mode="login" onAuthenticated={authenticated} />} /><Route path="/register" element={auth.user ? <Navigate to="/projects" /> : <AuthPage mode="register" onAuthenticated={authenticated} />} /><Route path="/learn" element={<Learn user={auth.user} />} /><Route path="/learn/:slug" element={<Topic />} /><Route path="/practice" element={<Practice user={auth.user} />} /><Route path="/ai-settings" element={<RequireUser user={auth.user}><AISettings /></RequireUser>} /><Route path="/projects" element={<RequireUser user={auth.user}><Projects /></RequireUser>} /><Route path="/projects/new" element={<RequireUser user={auth.user}><NewProject /></RequireUser>} /><Route path="/projects/:projectId" element={<RequireUser user={auth.user}><ProjectDetail /></RequireUser>} /><Route path="/projects/:projectId/advisor" element={<RequireUser user={auth.user}><ProjectAdvisor /></RequireUser>} /><Route path="/projects/:projectId/marks/new" element={<RequireUser user={auth.user}><NewMark /></RequireUser>} /><Route path="/projects/:projectId/tasks/:runId" element={<RequireUser user={auth.user}><TaskPage /></RequireUser>} /><Route path="/projects/:projectId/searches/:searchId" element={<RequireUser user={auth.user}><SearchPage /></RequireUser>} /><Route path="/projects/:projectId/risks/:analysisId" element={<RequireUser user={auth.user}><RiskPage /></RequireUser>} /><Route path="/projects/:projectId/documents/:documentId" element={<RequireUser user={auth.user}><DocumentPage /></RequireUser>} /><Route path="/ops" element={<RequireUser user={auth.user}><Ops user={auth.user} /></RequireUser>} /><Route path="*" element={<Navigate to="/" replace />} /></Routes></RouteBoundary></ProductShell>;
 }

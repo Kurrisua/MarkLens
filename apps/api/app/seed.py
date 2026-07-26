@@ -5,15 +5,37 @@ from __future__ import annotations
 import hashlib
 import json
 from datetime import date
+from pathlib import Path
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from PIL import Image, ImageDraw, ImageFont
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .auth import hash_password
 from .config import get_settings
 from .db import get_session_factory
-from .models import ImageAsset, LegalChunk, LegalSource, Trademark, TrademarkFeature
+from .models import (
+    AgentRun,
+    CaseRecord,
+    Consultation,
+    DocumentDraft,
+    ImageAsset,
+    LearningArticle,
+    LearningTopic,
+    LearningVideo,
+    LegalChunk,
+    LegalSource,
+    PracticeQuestion,
+    Project,
+    RiskAnalysis,
+    SearchRecord,
+    SourceDefinition,
+    Trademark,
+    TrademarkFeature,
+    User,
+    UserRole,
+)
 from .retrieval import LocalModelRuntime, process_image, vector_to_blob
 from .sources import ensure_source_definitions, sync_source
 
@@ -201,6 +223,159 @@ LAW_SEEDS = [
     },
 ]
 
+LEARNING_LIBRARY = {
+    "trademark-basics": {
+        "prefix": "商标基础",
+        "subjects": [
+            "商标与企业名称的区别",
+            "商标与商品名称的区别",
+            "显著性的基本含义",
+            "文字商标的构成",
+            "图形商标的构成",
+            "组合商标的识别重点",
+            "颜色组合的使用边界",
+            "声音标志的特殊性",
+            "通用名称风险",
+            "描述性表达风险",
+        ],
+        "angles": [
+            "先判断什么",
+            "容易忽略的事实",
+            "面向创业者的提醒",
+            "常见误区",
+            "完成初筛后的下一步",
+            "适合记录在项目里的信息",
+            "判断时不能只看什么",
+            "为什么需要人工复核",
+            "和类别选择的关系",
+            "一个简短练习",
+        ],
+    },
+    "similarity": {
+        "prefix": "近似判断",
+        "subjects": [
+            "文字字形比较",
+            "读音比较",
+            "含义比较",
+            "整体视觉印象",
+            "主要识别部分",
+            "图形构图比较",
+            "商品服务类似关系",
+            "相关公众注意力",
+            "隔离观察方法",
+            "在先申请时间",
+        ],
+        "angles": [
+            "为什么不能单独判断",
+            "需要收集哪些证据",
+            "常见的片面判断",
+            "与类别的联动",
+            "案例拆解方法",
+            "结果出现分歧时怎么办",
+            "初筛分数如何理解",
+            "应当反向核查什么",
+            "给名称修改的启发",
+            "一个判断练习",
+        ],
+    },
+    "application-path": {
+        "prefix": "注册流程",
+        "subjects": [
+            "品牌命名准备",
+            "尼斯类别选择",
+            "近似检索准备",
+            "申请材料准备",
+            "形式审查阶段",
+            "实质审查阶段",
+            "初步审定公告",
+            "异议期",
+            "核准注册",
+            "注册后的规范使用",
+        ],
+        "angles": [
+            "这一阶段的目标",
+            "需要留存的材料",
+            "最常见的遗漏",
+            "给项目负责人的提醒",
+            "何时需要专业协助",
+            "如何降低返工成本",
+            "和前一步的衔接",
+            "对未来业务的影响",
+            "应当记录的时间点",
+            "一个行动清单",
+        ],
+    },
+}
+
+
+def _learning_items(slug: str) -> list[tuple[str, str]]:
+    library = LEARNING_LIBRARY[slug]
+    items: list[tuple[str, str]] = []
+    for subject_index, subject in enumerate(library["subjects"], start=1):
+        for angle_index, angle in enumerate(library["angles"], start=1):
+            number = (subject_index - 1) * len(library["angles"]) + angle_index
+            title = f"{number:03d} · {subject}：{angle}"
+            body = (
+                f"{subject}不是一个可以脱离业务场景单独回答的问题。学习时先把拟使用的名称、"
+                f"商品或服务、目标用户、使用方式和计划时间写清楚，再围绕“{angle}”逐项核对。"
+                "系统的学习卡片只帮助你建立判断框架：它提示你需要比较哪些事实、哪些信息仍然缺失，"
+                "而不是替你作出可以注册或一定不能注册的结论。完成本条后，请在自己的品牌项目中记下一项"
+                "可验证信息，并在需要时结合官方查询结果或专业意见继续复核。"
+            )
+            items.append((title, body))
+    return items
+
+
+def _practice_items() -> list[dict[str, object]]:
+    scenarios = [
+        "儿童智能手表与配套应用",
+        "餐饮品牌与外卖服务",
+        "人工智能软件服务",
+        "护肤品与零售服务",
+        "咖啡品牌与咖啡馆服务",
+        "运动服饰与线上销售",
+        "家居用品与电商店铺",
+        "宠物用品与诊疗服务",
+        "教育课程与培训服务",
+        "文创产品与展览活动",
+    ]
+    focuses = [
+        "文字与读音",
+        "图形与整体印象",
+        "商品服务关联",
+        "在先申请时间",
+        "显著性与描述性",
+        "类别覆盖范围",
+        "使用证据",
+        "修改方案比较",
+        "检索结果的反向证据",
+        "人工复核边界",
+    ]
+    items: list[dict[str, object]] = []
+    for scenario_index, scenario in enumerate(scenarios, start=1):
+        for focus_index, focus in enumerate(focuses, start=1):
+            number = (scenario_index - 1) * len(focuses) + focus_index
+            items.append(
+                {
+                    "title": f"实训 {number:03d} · {scenario}",
+                    "prompt": f"某团队准备经营“{scenario}”。在进行“{focus}”的初步判断时，以下哪一种做法更稳妥？",
+                    "options": [
+                        {"id": "a", "label": "只依据名称是否完全相同，立即作出结论"},
+                        {
+                            "id": "b",
+                            "label": "记录业务事实，综合比较候选证据，并标记需要进一步复核的部分",
+                        },
+                        {"id": "c", "label": "只要属于不同类别，就不再查看其他信息"},
+                    ],
+                    "correct_option": "b",
+                    "explanation": "初筛应先保留事实和证据链，再综合判断文字、图形、商品服务及时间等因素。单一线索不能替代完整复核。",
+                    "difficulty": "basic"
+                    if number <= 34
+                    else ("intermediate" if number <= 67 else "advanced"),
+                }
+            )
+    return items
+
 
 def _demo_records() -> list[dict[str, object]]:
     applicants = [
@@ -339,6 +514,206 @@ def seed_demo_assets(session: Session) -> None:
     session.commit()
 
 
+def seed_cz_visual_showcase(session: Session) -> None:
+    """Create an operator-owned, clearly labelled visual-similarity exhibit.
+
+    One candidate (SWISSCOAT) is an auditable record from the IPO CZ ST.96
+    release.  The companion assets are generated course samples, never presented
+    as official Czech trademark artwork.  Their declared score gradient exists
+    only for the dedicated case below so a live presentation can demonstrate
+    high-to-low visual comparison predictably.
+    """
+    settings = get_settings()
+    admin = session.scalar(select(User).where(User.email == settings.demo_admin_email.lower()))
+    demo_source = session.scalar(select(SourceDefinition).where(SourceDefinition.source_key == "demo-json"))
+    if admin is None or demo_source is None:
+        return
+    project = session.scalar(
+        select(Project).where(
+            Project.owner_id == admin.id,
+            Project.name == "捷克真实数据 · 图样相似度梯度演示",
+        )
+    )
+    if project is None:
+        project = Project(
+            owner_id=admin.id,
+            name="捷克真实数据 · 图样相似度梯度演示",
+            business_description=(
+                "用于课程汇报：以捷克工业产权局 IPO CZ 公开记录 SWISSCOAT（CZ-112187）为真实来源，"
+                "配合明确标识的 AI 生成对照图样，展示图文、多模态检索和风险报告中的相似度梯度。"
+            ),
+            status="active",
+        )
+        session.add(project)
+        session.flush()
+
+    asset_specs = {
+        "official": ("cz-swisscoat-official.png", "捷克 IPO CZ 官方公开图样（SWISSCOAT）", False),
+        "reference": ("cz-reference-target.png", "课程图样梯度基准（AI 生成）", True),
+        "high": ("cz-high-similarity.png", "课程对照图样：高相似（AI 生成）", True),
+        "low": ("cz-low-similarity.png", "课程对照图样：较低相似（AI 生成）", True),
+        "very_low": ("cz-very-low-similarity.png", "课程对照图样：很低相似（AI 生成）", True),
+    }
+    asset_dir = Path(__file__).with_name("demo_assets")
+    assets: dict[str, ImageAsset] = {}
+    for key, (filename, label, is_demo) in asset_specs.items():
+        content = (asset_dir / filename).read_bytes()
+        processed = process_image(content, filename, settings)
+        asset = session.scalar(select(ImageAsset).where(ImageAsset.sha256 == processed.sha256))
+        storage_key = f"course-showcase/{filename}"
+        target_path = settings.upload_dir / storage_key
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        if not target_path.exists():
+            target_path.write_bytes(processed.content)
+        if asset is None:
+            asset = ImageAsset(
+                owner_id=admin.id,
+                project_id=project.id,
+                storage_key=storage_key,
+                original_filename=label,
+                mime_type=processed.mime_type,
+                sha256=processed.sha256,
+                byte_size=len(processed.content),
+                width=processed.width,
+                height=processed.height,
+                ocr_text=None,
+                ocr_confidence=None,
+                ocr_model="source-file" if not is_demo else "openai-imagegen-course-sample",
+                phash=processed.phash,
+                is_demo=is_demo,
+            )
+            session.add(asset)
+            session.flush()
+        else:
+            asset.owner_id = admin.id
+            asset.project_id = project.id
+        assets[key] = asset
+
+    # Attach the actual archived image only to its matching official record.
+    official = session.scalar(
+        select(Trademark).where(Trademark.source_record_id == "CZ-TM-112187")
+    )
+    if official is not None:
+        official.image_asset_id = assets["official"].id
+
+    showcase_group = "cz-swisscoat-visual-gradient-v1"
+    candidates = [
+        (
+            "CZ-SHOWCASE-HIGH-001",
+            "SWISSCOAT+",
+            [9],
+            "课程对照样本",
+            "high",
+            0.94,
+            "与基准构图近似：同为同心环、顶部星芒与右侧射线的组合。",
+        ),
+        (
+            "CZ-SHOWCASE-LOW-001",
+            "CRESCENTA",
+            [9],
+            "课程对照样本",
+            "low",
+            0.41,
+            "保留抽象几何语言，但主体结构已改为新月、六边形和圆点。",
+        ),
+        (
+            "CZ-SHOWCASE-VERYLOW-001",
+            "TERRA RISE",
+            [25],
+            "课程对照样本",
+            "very_low",
+            0.08,
+            "三角山形与暖色体系，构图、色彩和类别均与基准差异明显。",
+        ),
+    ]
+    for record_id, name, classes, applicant, asset_key, score, rationale in candidates:
+        item = session.scalar(
+            select(Trademark).where(
+                Trademark.source_id == demo_source.id,
+                Trademark.source_record_id == record_id,
+            )
+        )
+        raw = {
+            "jurisdiction": "DEMO",
+            "visual_showcase": {
+                "group": showcase_group,
+                "score": score,
+                "basis": "课程展示预设梯度；仅用于演示多模态评分可视化",
+                "rationale": rationale,
+            },
+            "asset_provenance": "OpenAI ImageGen 课程样本，2026-07-25 生成",
+        }
+        if item is None:
+            item = Trademark(
+                source_id=demo_source.id,
+                source_record_id=record_id,
+                raw_record_hash=hashlib.sha256(json.dumps(raw, sort_keys=True).encode()).hexdigest(),
+                name=name,
+                normalized_name=name.casefold(),
+                application_number=f"ML-{record_id[-8:]}",
+                applicant=applicant,
+                nice_classes=classes,
+                goods_services=["课程展示用图样相似度检索样本"],
+                status="课程展示样本",
+                status_date=date(2026, 7, 25),
+                application_date=date(2026, 7, 25),
+                source_url="demo://marklens/course-showcase/cz-visual-gradient",
+                image_asset_id=assets[asset_key].id,
+                is_demo=True,
+                raw_record=raw,
+            )
+            session.add(item)
+        else:
+            item.image_asset_id = assets[asset_key].id
+            item.raw_record = raw
+            item.nice_classes = classes
+        session.flush()
+
+    case_specs = [
+        (
+            "cz-official-swisscoat",
+            "SWISSCOAT（CZ-112187 真实记录）",
+            "捷克 IPO CZ 公开商标记录，用于展示真实来源、图样归档与检索溯源。",
+            [9],
+            "official",
+        ),
+        (
+            "cz-gradient-reference",
+            "SWISSCOAT 图样相似度基准",
+            "AI 生成的课程基准图样；检索报告会以透明标识的展示梯度呈现高、较低与很低的图样相似度。",
+            [9],
+            "reference",
+        ),
+        ("cz-gradient-high", "SWISSCOAT+（高相似对照）", "AI 生成的高相似课程对照图样。", [9], "high"),
+        ("cz-gradient-low", "CRESCENTA（较低相似对照）", "AI 生成的较低相似课程对照图样。", [9], "low"),
+        ("cz-gradient-very-low", "TERRA RISE（很低相似对照）", "AI 生成的很低相似课程对照图样。", [25], "very_low"),
+    ]
+    for scenario, name, description, classes, asset_key in case_specs:
+        exists = session.scalar(
+            select(CaseRecord).where(
+                CaseRecord.project_id == project.id,
+                CaseRecord.facts_snapshot["showcase_scenario"].as_string() == scenario,
+            )
+        )
+        if exists is None:
+            session.add(
+                CaseRecord(
+                    owner_id=admin.id,
+                    project_id=project.id,
+                    trademark_name=name,
+                    business_description=description,
+                    nice_classes=classes,
+                    image_asset_id=assets[asset_key].id,
+                    facts_snapshot={
+                        "showcase_scenario": scenario,
+                        "visual_showcase_group": showcase_group if scenario == "cz-gradient-reference" else None,
+                        "asset_provenance": "IPO CZ official archive" if asset_key == "official" else "OpenAI ImageGen course sample",
+                    },
+                )
+            )
+    session.commit()
+
+
 def seed_text_features(session: Session) -> None:
     settings = get_settings()
     runtime = LocalModelRuntime(settings)
@@ -424,13 +799,212 @@ def seed_legal_sources(session: Session) -> None:
     session.commit()
 
 
+def seed_product_content(session: Session) -> None:
+    """Create a small, clearly labelled teaching product experience."""
+    settings = get_settings()
+    admin = session.scalar(select(User).where(User.email == settings.demo_admin_email.lower()))
+    if admin is None:
+        admin = User(
+            email=settings.demo_admin_email.lower(),
+            password_hash=hash_password(settings.demo_admin_password),
+            display_name="MarkLens 演示运营员",
+        )
+        session.add(admin)
+        session.flush()
+    for role in ("user", "operator", "admin"):
+        if (
+            session.scalar(
+                select(UserRole).where(UserRole.user_id == admin.id, UserRole.role == role)
+            )
+            is None
+        ):
+            session.add(UserRole(user_id=admin.id, role=role))
+    topics = [
+        ("trademark-basics", "商标从哪里开始", "认识商标、显著性和注册保护的边界。", 1),
+        ("similarity", "如何理解商标近似", "从音、形、义与商品服务关系理解近似判断。", 2),
+        ("application-path", "注册流程与维护", "从申请到续展，理解每个阶段要做的事。", 3),
+    ]
+    for slug, title, summary, order_index in topics:
+        topic = session.scalar(select(LearningTopic).where(LearningTopic.slug == slug))
+        if topic is None:
+            topic = LearningTopic(
+                slug=slug, title=title, summary=summary, order_index=order_index, is_published=True
+            )
+            session.add(topic)
+            session.flush()
+        existing_titles = set(
+            session.scalars(
+                select(LearningArticle.title).where(LearningArticle.topic_id == topic.id)
+            ).all()
+        )
+        for item_index, (article_title, body) in enumerate(_learning_items(slug), start=1):
+            if article_title not in existing_titles:
+                session.add(
+                    LearningArticle(
+                        topic_id=topic.id,
+                        title=article_title,
+                        body=body,
+                        citations=[],
+                        order_index=item_index,
+                        is_published=True,
+                    )
+                )
+    video_items = [
+        (
+            "trademark-basics",
+            "商标知识小课堂：先查一查名称是否已被申请",
+            "bilibili",
+            "https://www.bilibili.com/video/BV1Hy4y157ra",
+            "外部短课",
+            "理解命名前先做在先申请检索的必要性，并知道该用什么问题开始核查。",
+        ),
+        (
+            "trademark-basics",
+            "公开课：商标的注册",
+            "bilibili",
+            "https://www.bilibili.com/video/BV1Nd4y147wj/",
+            "公开课节选",
+            "建立商标注册制度和申请条件的整体框架。",
+        ),
+        (
+            "similarity",
+            "商标实务运用：近似与混淆的判断视角",
+            "bilibili",
+            "https://www.bilibili.com/video/BV1gv411q77G/",
+            "外部讲座",
+            "把名称、图样、商品服务关系放在同一个近似判断框架中理解。",
+        ),
+        (
+            "application-path",
+            "如何办理商标申请：动画科普",
+            "bilibili",
+            "https://www.bilibili.com/video/BV1Ag411e7zg/",
+            "外部短课",
+            "了解提交商标申请前需要准备的基本材料和流程节点。",
+        ),
+        (
+            "application-path",
+            "谁可以申请商标？注册需要哪些材料？",
+            "bilibili",
+            "https://www.bilibili.com/video/BV18142167VR/",
+            "外部短课",
+            "梳理申请主体、材料准备与图样要求等基础问题。",
+        ),
+    ]
+    for order_index, (topic_slug, title, provider, url, duration, objective) in enumerate(
+        video_items, start=1
+    ):
+        topic = session.scalar(select(LearningTopic).where(LearningTopic.slug == topic_slug))
+        if topic and session.scalar(select(LearningVideo).where(LearningVideo.external_url == url)) is None:
+            session.add(
+                LearningVideo(
+                    topic_id=topic.id,
+                    title=title,
+                    provider=provider,
+                    external_url=url,
+                    duration_label=duration,
+                    learning_objective=objective,
+                    order_index=order_index,
+                    is_published=True,
+                )
+            )
+    if (
+        session.scalar(
+            select(PracticeQuestion).where(PracticeQuestion.title == "相似商标的判断重点")
+        )
+        is None
+    ):
+        session.add(
+            PracticeQuestion(
+                title="相似商标的判断重点",
+                prompt="判断两个文字商标是否近似时，以下哪一种做法更符合基本判断思路？",
+                options=[
+                    {"id": "a", "label": "只比较是否有完全相同的文字"},
+                    {"id": "b", "label": "综合比较音、形、义、整体印象及商品服务关系"},
+                    {"id": "c", "label": "只看双方是否属于同一个尼斯类别"},
+                ],
+                correct_option="b",
+                explanation="近似判断应结合商标标志本身的音、形、义、整体表现形式和商品服务类似关系综合分析。",
+                difficulty="basic",
+                is_published=True,
+            )
+        )
+    existing_questions = set(session.scalars(select(PracticeQuestion.title)).all())
+    for item in _practice_items():
+        if str(item["title"]) not in existing_questions:
+            session.add(
+                PracticeQuestion(
+                    title=str(item["title"]),
+                    prompt=str(item["prompt"]),
+                    options=item["options"],
+                    correct_option=str(item["correct_option"]),
+                    explanation=str(item["explanation"]),
+                    difficulty=str(item["difficulty"]),
+                    is_published=True,
+                )
+            )
+    session.commit()
+
+
+def assign_legacy_demo_records(session: Session) -> None:
+    """Place pre-product records in one explicit operator-owned demo project."""
+    settings = get_settings()
+    owner = session.scalar(select(User).where(User.email == settings.demo_admin_email.lower()))
+    if owner is None:
+        return
+    project = session.scalar(
+        select(Project).where(Project.owner_id == owner.id, Project.name == "历史演示归档")
+    )
+    if project is None:
+        project = Project(
+            owner_id=owner.id,
+            name="历史演示归档",
+            business_description="产品化迁移前生成的教学案例与分析记录。",
+            status="archived",
+        )
+        session.add(project)
+        session.flush()
+    cases = session.scalars(select(CaseRecord).where(CaseRecord.owner_id.is_(None))).all()
+    for case in cases:
+        case.owner_id = owner.id
+        case.project_id = project.id
+        if case.image_asset_id:
+            asset = session.get(ImageAsset, case.image_asset_id)
+            if asset and asset.owner_id is None:
+                asset.owner_id = owner.id
+                asset.project_id = project.id
+    for search in session.scalars(
+        select(SearchRecord).where(SearchRecord.owner_id.is_(None))
+    ).all():
+        search.owner_id = owner.id
+    for analysis in session.scalars(
+        select(RiskAnalysis).where(RiskAnalysis.owner_id.is_(None))
+    ).all():
+        analysis.owner_id = owner.id
+    for document in session.scalars(
+        select(DocumentDraft).where(DocumentDraft.owner_id.is_(None))
+    ).all():
+        document.owner_id = owner.id
+    for consultation in session.scalars(
+        select(Consultation).where(Consultation.owner_id.is_(None))
+    ).all():
+        consultation.owner_id = owner.id
+    for run in session.scalars(select(AgentRun).where(AgentRun.owner_id.is_(None))).all():
+        run.owner_id = owner.id
+        run.visibility = "ops" if run.agent_type == "ingestion" else "user"
+    session.commit()
+
+
 def seed_all(session: Session) -> None:
     prepare_demo_files()
     ensure_source_definitions(session)
     sync_source(session, "demo-json", page_size=20)
     seed_demo_assets(session)
-    seed_text_features(session)
     seed_legal_sources(session)
+    seed_product_content(session)
+    seed_cz_visual_showcase(session)
+    seed_text_features(session)
+    assign_legacy_demo_records(session)
 
 
 def main() -> None:

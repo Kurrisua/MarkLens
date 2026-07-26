@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 import app.main as main_module
+from app.models import ImageAsset
 
 client = TestClient(main_module.app)
 
@@ -18,7 +19,7 @@ def test_health_reports_contract_and_dependencies(monkeypatch) -> None:
     assert response.json()["dependencies"]["deepseek"]["status"] == "ready"
 
 
-def test_invalid_nice_class_uses_shared_error_shape() -> None:
+def test_legacy_unprotected_case_endpoint_is_retired() -> None:
     response = client.post(
         "/api/v1/cases",
         json={
@@ -30,8 +31,8 @@ def test_invalid_nice_class_uses_shared_error_shape() -> None:
         },
     )
 
-    assert response.status_code == 422
-    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+    assert response.status_code == 410
+    assert response.json()["error"]["code"] == "LEGACY_ENDPOINT_RETIRED"
     assert response.json()["error"]["request_id"].startswith("req_")
 
 
@@ -39,3 +40,26 @@ def test_arbitrary_source_url_is_not_exposed() -> None:
     paths = {route.path for route in main_module.app.routes}
     assert "/api/v1/sources/{source_key}/sync" in paths
     assert not any("url" in path and "source" in path for path in paths)
+
+
+def test_legacy_image_asset_is_recovered_into_api_storage(tmp_path, monkeypatch) -> None:
+    legacy = tmp_path / "data" / "uploads" / "legacy" / "logo.png"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_bytes(b"trusted-image-bytes")
+    upload_dir = tmp_path / "apps" / "api" / "data" / "uploads"
+    monkeypatch.setattr(main_module, "REPOSITORY_ROOT", tmp_path)
+    monkeypatch.setattr(main_module.settings, "upload_dir", upload_dir)
+    asset = ImageAsset(
+        storage_key="legacy/logo.png",
+        original_filename="logo.png",
+        mime_type="image/png",
+        sha256="a" * 64,
+        byte_size=19,
+        width=1,
+        height=1,
+    )
+
+    recovered = main_module.resolved_asset_path(asset)
+
+    assert recovered == upload_dir / "legacy" / "logo.png"
+    assert recovered.read_bytes() == b"trusted-image-bytes"

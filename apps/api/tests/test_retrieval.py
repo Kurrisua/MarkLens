@@ -1,4 +1,5 @@
 from io import BytesIO
+from types import SimpleNamespace
 
 import numpy as np
 from PIL import Image
@@ -8,6 +9,7 @@ from app.retrieval import (
     blob_to_vector,
     normalize_text,
     normalized_weights,
+    is_query_artwork_candidate,
     phash_similarity,
     phonetic_similarity,
     process_image,
@@ -61,3 +63,15 @@ def test_phash_and_image_sanitization(tmp_path) -> None:
     assert processed.mime_type == "image/png"
     assert processed.width == 80
     assert phash_similarity(processed.phash, processed.phash) == 1
+
+
+def test_query_artwork_is_not_used_as_its_own_candidate() -> None:
+    """A query must never receive a 100% hit from the exact same asset."""
+    case = SimpleNamespace(image_asset_id="asset-query")
+    candidates = [
+        SimpleNamespace(id="self", image_asset_id="asset-query"),
+        SimpleNamespace(id="independent", image_asset_id="asset-other"),
+        SimpleNamespace(id="text-only", image_asset_id=None),
+    ]
+    filtered = [item for item in candidates if not is_query_artwork_candidate(case, item)]
+    assert [item.id for item in filtered] == ["independent", "text-only"]

@@ -301,10 +301,23 @@ def _reasons(scores: dict[str, float | None], candidate: Trademark) -> list[str]
     return reasons or ["多通道综合分数进入候选范围，建议人工复核"]
 
 
+def is_query_artwork_candidate(case: Any, candidate: Trademark) -> bool:
+    """Return true only when a candidate reuses the exact query image asset."""
+    return bool(case.image_asset_id and candidate.image_asset_id == case.image_asset_id)
+
+
 def search_trademarks(session: Session, case: Any, top_k: int = 10) -> list[dict[str, Any]]:
     settings = get_settings()
     runtime = LocalModelRuntime(settings)
-    candidates = list(session.scalars(select(Trademark)).all())
+    # A course exhibit and an imported user attachment can legitimately share an
+    # asset with an indexed record.  That record is the query artwork itself,
+    # not independent evidence, so including it would always create a 100%
+    # visual hit and make the low-similarity scenarios misleading.
+    candidates = [
+        item
+        for item in session.scalars(select(Trademark)).all()
+        if not is_query_artwork_candidate(case, item)
+    ]
     if not candidates:
         return []
     query_text = " ".join(filter(None, [case.trademark_name, case.confirmed_ocr_text]))

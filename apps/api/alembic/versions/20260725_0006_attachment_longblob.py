@@ -7,6 +7,7 @@ Create Date: 2026-07-25
 
 from alembic import op
 from sqlalchemy.dialects import mysql
+from sqlalchemy import inspect
 
 
 revision = "20260725_0006"
@@ -16,13 +17,15 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.alter_column(
-        "project_attachments",
-        "raw_content",
-        existing_type=mysql.BLOB(),
-        type_=mysql.LONGBLOB(),
-        existing_nullable=False,
-    )
+    column = next(item for item in inspect(op.get_bind()).get_columns("project_attachments") if item["name"] == "raw_content")
+    if str(column["type"]).upper() != "LONGBLOB":
+        op.alter_column(
+            "project_attachments",
+            "raw_content",
+            existing_type=mysql.BLOB(),
+            type_=mysql.LONGBLOB(),
+            existing_nullable=False,
+        )
 
 
 def downgrade() -> None:

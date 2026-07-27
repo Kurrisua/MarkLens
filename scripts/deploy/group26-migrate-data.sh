@@ -14,7 +14,7 @@ stamp="$(date +%Y%m%d-%H%M%S)"
 legacy_dump="$GROUP_ROOT/backups/${LEGACY_DATABASE}-legacy-${stamp}.sql.gz"
 database_password="$(openssl rand -hex 24)"
 
-mysqldump --single-transaction --routines --triggers --no-tablespaces \
+mysqldump --single-transaction --routines --triggers --no-tablespaces --set-gtid-purged=OFF \
   -uroot -p"$MARKLENS_MYSQL_ROOT_PASSWORD" "$LEGACY_DATABASE" | gzip > "$legacy_dump"
 
 mysql -uroot -p"$MARKLENS_MYSQL_ROOT_PASSWORD" <<SQL

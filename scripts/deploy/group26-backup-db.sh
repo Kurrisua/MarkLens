@@ -8,7 +8,7 @@ DATABASE_NAME=marklens_g26
 
 mkdir -p "$GROUP_ROOT/backups"
 stamp="$(date +%Y%m%d-%H%M%S)"
-mysqldump --single-transaction --routines --triggers --no-tablespaces \
+mysqldump --single-transaction --routines --triggers --no-tablespaces --set-gtid-purged=OFF \
   -uroot -p"$MARKLENS_MYSQL_ROOT_PASSWORD" "$DATABASE_NAME" \
   | gzip > "$GROUP_ROOT/backups/${DATABASE_NAME}-${stamp}.sql.gz"
 echo "$GROUP_ROOT/backups/${DATABASE_NAME}-${stamp}.sql.gz"

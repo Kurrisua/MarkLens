@@ -48,6 +48,12 @@ apps/api/data/processed/
 apps/api/data/indexes/
 apps/api/.model-cache/
 
+# Group-isolated server runtime state and database backups.
+runtime/
+web/
+backups/
+archive/
+
 # Local validation artefacts. Curated sample attachments live in output/attachments/.
 tmp/
 output/.DS_Store

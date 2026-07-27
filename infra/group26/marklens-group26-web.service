@@ -1,0 +1,18 @@
+[Unit]
+Description=MarkLens Group 26 isolated web server
+After=network.target marklens-group26-api.service
+
+[Service]
+Type=forking
+PIDFile=/root/code/group26/MarkLens/runtime/nginx/nginx.pid
+ExecStartPre=/usr/bin/mkdir -p /root/code/group26/MarkLens/runtime/nginx
+ExecStart=/usr/sbin/nginx -p /root/code/group26/MarkLens -c infra/group26/nginx.conf
+ExecReload=/usr/sbin/nginx -p /root/code/group26/MarkLens -c infra/group26/nginx.conf -s reload
+ExecStop=/usr/sbin/nginx -p /root/code/group26/MarkLens -c infra/group26/nginx.conf -s quit
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

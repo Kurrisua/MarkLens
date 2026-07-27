@@ -1,0 +1,17 @@
+[Unit]
+Description=MarkLens Group 26 FastAPI service
+After=network.target mysql.service
+
+[Service]
+Type=simple
+WorkingDirectory=/root/code/group26/MarkLens
+EnvironmentFile=/root/code/group26/MarkLens/.env
+Environment=PYTHONPATH=/root/code/group26/MarkLens/apps/api:/root/code/group26/MarkLens/apps/api/.venv/lib/python3.12/site-packages
+ExecStart=/usr/bin/python3.12 -m uvicorn app.main:app --host 127.0.0.1 --port 8026 --workers 2
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

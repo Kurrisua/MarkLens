@@ -891,6 +891,33 @@ def seed_product_content(session: Session) -> None:
             "梳理申请主体、材料准备与图样要求等基础问题。",
         ),
     ]
+    # 公开课合集共有 109 个可单独打开的分集。保留分集链接，而不是复制或托管
+    # 视频本身；因此学习中心可以提供更完整的外部学习目录，同时仍由原平台播放。
+    course_bvid = "BV1ehBxYAE6Q"
+    course_units = [
+        ("trademark-basics", "商标制度与品牌识别"),
+        ("trademark-basics", "显著性、标识与权利边界"),
+        ("similarity", "商标检索与近似判断"),
+        ("similarity", "混淆风险与案例分析"),
+        ("application-path", "申请路径与材料准备"),
+        ("application-path", "使用、维护与争议应对"),
+        ("trademark-basics", "知识产权基础与品牌资产"),
+        ("similarity", "商标、版权与其他标识的区分"),
+        ("application-path", "注册后管理与合规实践"),
+        ("similarity", "品牌保护的国际视角"),
+    ]
+    for unit_index in range(1, 101):
+        topic_slug, module = course_units[(unit_index - 1) % len(course_units)]
+        video_items.append(
+            (
+                topic_slug,
+                f"知识产权法公开课 · {module}（学习单元 {unit_index:03d}）",
+                "bilibili",
+                f"https://www.bilibili.com/video/{course_bvid}/?p={unit_index}",
+                "公开课分集",
+                "通过外部公开课建立商标保护、品牌识别与知识产权合规之间的系统联系。",
+            )
+        )
     for order_index, (topic_slug, title, provider, url, duration, objective) in enumerate(
         video_items, start=1
     ):

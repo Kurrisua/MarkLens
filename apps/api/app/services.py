@@ -181,6 +181,8 @@ def search_dict(session: Session, search: SearchRecord) -> dict[str, Any]:
                 "image_asset_id": trademark.image_asset_id,
                 "source_url": trademark.source_url,
                 "source_name": source.name,
+                "data_label": trademark.raw_record.get("data_label"),
+                "data_notice": trademark.raw_record.get("data_notice"),
                 "source_record_id": trademark.source_record_id,
                 "jurisdiction": str(
                     trademark.raw_record.get("jurisdiction")
@@ -675,8 +677,13 @@ def source_list(session: Session) -> list[dict[str, Any]]:
     )
     result = []
     for source in sources:
-        adapter = REGISTRY.get(source.source_key)
-        healthy, detail = adapter.health_check()
+        try:
+            adapter = REGISTRY.get(source.source_key)
+            healthy, detail = adapter.health_check()
+        except KeyError:
+            # An administrator-imported official snapshot has no reusable
+            # network adapter, but is still a healthy auditable source.
+            healthy, detail = True, "已归档的官方数据快照"
         result.append(
             {
                 "source_key": source.source_key,

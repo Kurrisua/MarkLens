@@ -73,6 +73,8 @@ export interface TrademarkEvidence {
   image_asset_id: string | null;
   source_url: string;
   source_name: string;
+  data_label: string | null;
+  data_notice: string | null;
   source_record_id: string;
   jurisdiction: string;
   is_demo: boolean;

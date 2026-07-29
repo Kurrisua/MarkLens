@@ -273,6 +273,8 @@ class TrademarkEvidence(ContractModel):
     image_asset_id: str | None = None
     source_url: str
     source_name: str
+    data_label: str | None = None
+    data_notice: str | None = None
     source_record_id: str
     jurisdiction: str
     is_demo: bool

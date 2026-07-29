@@ -316,6 +316,17 @@ def is_query_artwork_candidate(case: Any, candidate: Trademark) -> bool:
     return bool(case.image_asset_id and candidate.image_asset_id == case.image_asset_id)
 
 
+def has_searchable_mark_name(candidate: Trademark) -> bool:
+    """Whether a source supplied a mark name suitable for text-based scoring.
+
+    CNIPA's batch-7 basic-information export contains registration numbers and
+    structured registration facts, but no trademark-name column.  Its neutral
+    registration-number display label must not become text, pinyin, or semantic
+    evidence.
+    """
+    return bool(candidate.raw_record.get("mark_name_available", True))
+
+
 def course_scenario_visual_score(case: Any, candidate: Trademark) -> float | None:
     """Return the declared exhibit score against the real Czech reference only."""
     if candidate.source_record_id != COURSE_CZ_REFERENCE_RECORD_ID:
@@ -339,16 +350,17 @@ def search_trademarks(session: Session, case: Any, top_k: int = 10) -> list[dict
     if not candidates:
         return []
     query_text = " ".join(filter(None, [case.trademark_name, case.confirmed_ocr_text]))
-    query_embedding = runtime.embed_texts([query_text])[0]
+    text_candidates = [item for item in candidates if has_searchable_mark_name(item)]
+    query_embedding = runtime.embed_texts([query_text])[0] if text_candidates else None
     stored_text_rows = session.scalars(
         select(TrademarkFeature).where(
-            TrademarkFeature.trademark_id.in_([item.id for item in candidates]),
+            TrademarkFeature.trademark_id.in_([item.id for item in text_candidates]),
             TrademarkFeature.feature_type == "text",
             TrademarkFeature.model_name == settings.text_embedding_model,
         )
     ).all()
     stored_text = {item.trademark_id: item for item in stored_text_rows}
-    missing = [item for item in candidates if item.id not in stored_text]
+    missing = [item for item in text_candidates if item.id not in stored_text]
     generated = dict(
         zip(
             [item.id for item in missing],
@@ -356,14 +368,14 @@ def search_trademarks(session: Session, case: Any, top_k: int = 10) -> list[dict
             strict=True,
         )
     )
-    candidate_embeddings = [
-        (
+    candidate_embeddings = {
+        item.id: (
             blob_to_vector(stored_text[item.id].vector_blob, stored_text[item.id].dimension)
             if item.id in stored_text
             else generated[item.id]
         )
-        for item in candidates
-    ]
+        for item in text_candidates
+    }
 
     query_asset = session.get(ImageAsset, case.image_asset_id) if case.image_asset_id else None
     query_image_embedding: np.ndarray | None = None
@@ -386,7 +398,8 @@ def search_trademarks(session: Session, case: Any, top_k: int = 10) -> list[dict
     image_features = {item.trademark_id: item for item in candidate_feature_rows}
 
     ranked: list[dict[str, Any]] = []
-    for candidate, semantic_vector in zip(candidates, candidate_embeddings, strict=True):
+    for candidate in candidates:
+        semantic_vector = candidate_embeddings.get(candidate.id)
         visual_embedding_score: float | None = None
         candidate_feature = image_features.get(candidate.id)
         if query_image_embedding is not None and candidate_feature:
@@ -423,9 +436,15 @@ def search_trademarks(session: Session, case: Any, top_k: int = 10) -> list[dict
             visual_basis = "course_showcase_configured_gradient"
         scores: dict[str, Any] = {
             "visual": visual_score,
-            "text": text_similarity(query_text, candidate.name),
-            "phonetic": phonetic_similarity(query_text, candidate.name),
-            "semantic": round(cosine_similarity(query_embedding, semantic_vector), 6),
+            "text": text_similarity(query_text, candidate.name)
+            if semantic_vector is not None
+            else None,
+            "phonetic": phonetic_similarity(query_text, candidate.name)
+            if semantic_vector is not None
+            else None,
+            "semantic": round(cosine_similarity(query_embedding, semantic_vector), 6)
+            if query_embedding is not None and semantic_vector is not None
+            else None,
             "category": _class_similarity(case.nice_classes, candidate.nice_classes),
         }
         overall, applied_weights = weighted_score(scores)

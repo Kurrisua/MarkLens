@@ -425,6 +425,10 @@ class SourceSyncCreate(ContractModel):
     max_pages: int = Field(default=100, ge=1, le=1000)
 
 
+class SourceEnabledUpdate(ContractModel):
+    enabled: bool
+
+
 class IngestionRunResponse(ContractModel):
     ingestion_run_id: str
     source_key: str

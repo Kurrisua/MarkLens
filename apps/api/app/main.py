@@ -112,6 +112,7 @@ from .schemas import (
     RiskAssessment,
     SearchCreate,
     SourceDefinitionResponse,
+    SourceEnabledUpdate,
     SourceSyncCreate,
 )
 from .services import (
@@ -1323,6 +1324,34 @@ def ops_sources(
     actor: CurrentUser = Depends(require_roles(ROLE_OPERATOR, ROLE_ADMIN)),
 ) -> list[dict]:
     return source_list(session)
+
+
+@app.put("/api/v1/ops/sources/{source_key}/enabled", response_model=SourceDefinitionResponse)
+def ops_update_source_enabled(
+    source_key: str,
+    payload: SourceEnabledUpdate,
+    request: Request,
+    session: Session = Depends(get_db),
+    actor: CurrentUser = Depends(require_roles(ROLE_OPERATOR, ROLE_ADMIN)),
+) -> dict:
+    """Reversibly include or suppress a source from all newly-created searches."""
+    source = session.scalar(
+        select(SourceDefinition).where(SourceDefinition.source_key == source_key)
+    )
+    if source is None:
+        raise AppError(404, "SOURCE_NOT_INITIALIZED", "未找到该数据源。")
+    source.enabled = payload.enabled
+    audit(
+        session,
+        request,
+        actor,
+        "source.search_scope.update",
+        "source",
+        source.id,
+        {"source_key": source_key, "enabled": payload.enabled},
+    )
+    session.commit()
+    return next(item for item in source_list(session) if item["source_key"] == source_key)
 
 
 @app.post(

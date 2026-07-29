@@ -342,9 +342,15 @@ def search_trademarks(session: Session, case: Any, top_k: int = 10) -> list[dict
     # asset with an indexed record.  That record is the query artwork itself,
     # not independent evidence, so including it would always create a 100%
     # visual hit and make the low-similarity scenarios misleading.
+    # Source disabling is a reversible operations control: it changes only
+    # future candidate recall and never deletes evidence, projects, or reports.
     candidates = [
         item
-        for item in session.scalars(select(Trademark)).all()
+        for item in session.scalars(
+            select(Trademark).join(SourceDefinition, SourceDefinition.id == Trademark.source_id).where(
+                SourceDefinition.enabled.is_(True)
+            )
+        ).all()
         if not is_query_artwork_candidate(case, item)
     ]
     if not candidates:

@@ -98,6 +98,7 @@ export const api = {
   createOpsQuestion: (input: { title: string; prompt: string; options: Array<{ id: string; label: string }>; correct_option: string; explanation: string; difficulty: "basic" | "intermediate" | "advanced"; is_published: boolean }) => request<PracticeQuestion>("/api/v1/ops/practice/questions", { method: "POST", body: JSON.stringify(input) }),
   opsRuns: () => request<AgentRun[]>("/api/v1/ops/runs"),
   getSources: () => request<SourceDefinition[]>("/api/v1/ops/sources"),
+  updateSourceEnabled: (key: string, enabled: boolean) => request<SourceDefinition>(`/api/v1/ops/sources/${key}/enabled`, { method: "PUT", body: JSON.stringify({ enabled }) }),
   syncSource: (key: string) => request<AgentRun>(`/api/v1/ops/sources/${key}/sync`, { method: "POST", body: JSON.stringify({ page_size: 100, max_pages: 100 }) }),
   adminUsers: () => request<AdminUser[]>("/api/v1/admin/users"),
   updateUserRoles: (id: string, roles: string[]) => request<AdminUser>(`/api/v1/admin/users/${id}/roles`, { method: "PUT", body: JSON.stringify({ roles }) })
